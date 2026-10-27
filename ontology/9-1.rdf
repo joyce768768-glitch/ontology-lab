@@ -1,0 +1,271 @@
+<?xml version="1.0"?>
+<rdf:RDF xmlns="http://www.semanticweb.org/moon/ontologies/2026/8/untitled-ontology-9/"
+     xml:base="http://www.semanticweb.org/moon/ontologies/2026/8/untitled-ontology-9/"
+     xmlns:owl="http://www.w3.org/2002/07/owl#"
+     xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+     xmlns:xml="http://www.w3.org/XML/1998/namespace"
+     xmlns:xsd="http://www.w3.org/2001/XMLSchema#"
+     xmlns:rdfs="http://www.w3.org/2000/01/rdf-schema#">
+    <owl:Ontology rdf:about="http://www.semanticweb.org/moon/ontologies/2026/8/untitled-ontology-9"/>
+    
+
+
+    <!-- 
+    ///////////////////////////////////////////////////////////////////////////////////////
+    //
+    // Object Properties
+    //
+    ///////////////////////////////////////////////////////////////////////////////////////
+     -->
+
+    
+
+
+    <!-- http://www.semanticweb.org/moon/ontologies/2026/8/untitled-ontology-9#exhibits -->
+
+    <owl:ObjectProperty rdf:about="http://www.semanticweb.org/moon/ontologies/2026/8/untitled-ontology-9#exhibits">
+        <rdfs:subPropertyOf rdf:resource="http://www.w3.org/2002/07/owl#topObjectProperty"/>
+        <rdfs:domain rdf:resource="http://www.semanticweb.org/moon/ontologies/2026/8/untitled-ontology-9#Patient"/>
+        <rdfs:range rdf:resource="http://www.semanticweb.org/moon/ontologies/2026/8/untitled-ontology-9#Symptom"/>
+    </owl:ObjectProperty>
+    
+
+
+    <!-- http://www.semanticweb.org/moon/ontologies/2026/8/untitled-ontology-9#treats -->
+
+    <owl:ObjectProperty rdf:about="http://www.semanticweb.org/moon/ontologies/2026/8/untitled-ontology-9#treats">
+        <rdfs:subPropertyOf rdf:resource="http://www.w3.org/2002/07/owl#topObjectProperty"/>
+        <rdfs:domain rdf:resource="http://www.semanticweb.org/moon/ontologies/2026/8/untitled-ontology-9#Doctor"/>
+        <rdfs:range rdf:resource="http://www.semanticweb.org/moon/ontologies/2026/8/untitled-ontology-9#Patient"/>
+    </owl:ObjectProperty>
+    
+
+
+    <!-- http://www.semanticweb.org/moon/ontologies/2026/8/untitled-ontology-9#worksIn -->
+
+    <owl:ObjectProperty rdf:about="http://www.semanticweb.org/moon/ontologies/2026/8/untitled-ontology-9#worksIn">
+        <rdfs:subPropertyOf rdf:resource="http://www.w3.org/2002/07/owl#topObjectProperty"/>
+        <rdf:type rdf:resource="http://www.w3.org/2002/07/owl#TransitiveProperty"/>
+        <rdfs:domain rdf:resource="http://www.semanticweb.org/moon/ontologies/2026/8/untitled-ontology-9#Doctor"/>
+        <rdfs:range rdf:resource="http://www.semanticweb.org/moon/ontologies/2026/8/untitled-ontology-9#Department"/>
+    </owl:ObjectProperty>
+    
+
+
+    <!-- http://www.w3.org/2002/07/owl#topObjectProperty -->
+
+    <rdf:Description rdf:about="http://www.w3.org/2002/07/owl#topObjectProperty">
+        <rdfs:domain rdf:resource="http://www.semanticweb.org/moon/ontologies/2026/8/untitled-ontology-9#Doctor"/>
+        <rdfs:range rdf:resource="http://www.semanticweb.org/moon/ontologies/2026/8/untitled-ontology-9#Patient"/>
+    </rdf:Description>
+    
+
+
+    <!-- 
+    ///////////////////////////////////////////////////////////////////////////////////////
+    //
+    // Data properties
+    //
+    ///////////////////////////////////////////////////////////////////////////////////////
+     -->
+
+    
+
+
+    <!-- http://www.semanticweb.org/moon/ontologies/2026/8/untitled-ontology-9#hasAge -->
+
+    <owl:DatatypeProperty rdf:about="http://www.semanticweb.org/moon/ontologies/2026/8/untitled-ontology-9#hasAge">
+        <rdfs:subPropertyOf rdf:resource="http://www.w3.org/2002/07/owl#topDataProperty"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#int"/>
+    </owl:DatatypeProperty>
+    
+
+
+    <!-- http://www.semanticweb.org/moon/ontologies/2026/8/untitled-ontology-9#hasICD_Code -->
+
+    <owl:DatatypeProperty rdf:about="http://www.semanticweb.org/moon/ontologies/2026/8/untitled-ontology-9#hasICD_Code">
+        <rdfs:subPropertyOf rdf:resource="http://www.w3.org/2002/07/owl#topDataProperty"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+    </owl:DatatypeProperty>
+    
+
+
+    <!-- http://www.semanticweb.org/moon/ontologies/2026/8/untitled-ontology-9#hasTemperature -->
+
+    <owl:DatatypeProperty rdf:about="http://www.semanticweb.org/moon/ontologies/2026/8/untitled-ontology-9#hasTemperature">
+        <rdfs:subPropertyOf rdf:resource="http://www.w3.org/2002/07/owl#topDataProperty"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#float"/>
+    </owl:DatatypeProperty>
+    
+
+
+    <!-- 
+    ///////////////////////////////////////////////////////////////////////////////////////
+    //
+    // Classes
+    //
+    ///////////////////////////////////////////////////////////////////////////////////////
+     -->
+
+    
+
+
+    <!-- http://www.semanticweb.org/moon/ontologies/2026/8/untitled-ontology-9#Clinical_Process -->
+
+    <owl:Class rdf:about="http://www.semanticweb.org/moon/ontologies/2026/8/untitled-ontology-9#Clinical_Process"/>
+    
+
+
+    <!-- http://www.semanticweb.org/moon/ontologies/2026/8/untitled-ontology-9#Department -->
+
+    <owl:Class rdf:about="http://www.semanticweb.org/moon/ontologies/2026/8/untitled-ontology-9#Department">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/moon/ontologies/2026/8/untitled-ontology-9#Organization"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.semanticweb.org/moon/ontologies/2026/8/untitled-ontology-9#Diagnosis -->
+
+    <owl:Class rdf:about="http://www.semanticweb.org/moon/ontologies/2026/8/untitled-ontology-9#Diagnosis">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/moon/ontologies/2026/8/untitled-ontology-9#Clinical_Process"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.semanticweb.org/moon/ontologies/2026/8/untitled-ontology-9#Disease -->
+
+    <owl:Class rdf:about="http://www.semanticweb.org/moon/ontologies/2026/8/untitled-ontology-9#Disease">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/moon/ontologies/2026/8/untitled-ontology-9#Mediacl_Entity"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.semanticweb.org/moon/ontologies/2026/8/untitled-ontology-9#Doctor -->
+
+    <owl:Class rdf:about="http://www.semanticweb.org/moon/ontologies/2026/8/untitled-ontology-9#Doctor">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/moon/ontologies/2026/8/untitled-ontology-9#Person"/>
+        <owl:disjointWith rdf:resource="http://www.semanticweb.org/moon/ontologies/2026/8/untitled-ontology-9#Patient"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.semanticweb.org/moon/ontologies/2026/8/untitled-ontology-9#Drug -->
+
+    <owl:Class rdf:about="http://www.semanticweb.org/moon/ontologies/2026/8/untitled-ontology-9#Drug">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/moon/ontologies/2026/8/untitled-ontology-9#Mediacl_Entity"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.semanticweb.org/moon/ontologies/2026/8/untitled-ontology-9#Fever -->
+
+    <owl:Class rdf:about="http://www.semanticweb.org/moon/ontologies/2026/8/untitled-ontology-9#Fever">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/moon/ontologies/2026/8/untitled-ontology-9#Symptom"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.semanticweb.org/moon/ontologies/2026/8/untitled-ontology-9#Fever_Patient -->
+
+    <owl:Class rdf:about="http://www.semanticweb.org/moon/ontologies/2026/8/untitled-ontology-9#Fever_Patient">
+        <owl:equivalentClass>
+            <owl:Restriction>
+                <owl:onProperty rdf:resource="http://www.semanticweb.org/moon/ontologies/2026/8/untitled-ontology-9#exhibits"/>
+                <owl:someValuesFrom rdf:resource="http://www.semanticweb.org/moon/ontologies/2026/8/untitled-ontology-9#Fever"/>
+            </owl:Restriction>
+        </owl:equivalentClass>
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/moon/ontologies/2026/8/untitled-ontology-9#Patient"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.semanticweb.org/moon/ontologies/2026/8/untitled-ontology-9#Lab_Test -->
+
+    <owl:Class rdf:about="http://www.semanticweb.org/moon/ontologies/2026/8/untitled-ontology-9#Lab_Test">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/moon/ontologies/2026/8/untitled-ontology-9#Clinical_Process"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.semanticweb.org/moon/ontologies/2026/8/untitled-ontology-9#Mediacl_Entity -->
+
+    <owl:Class rdf:about="http://www.semanticweb.org/moon/ontologies/2026/8/untitled-ontology-9#Mediacl_Entity"/>
+    
+
+
+    <!-- http://www.semanticweb.org/moon/ontologies/2026/8/untitled-ontology-9#Nurse -->
+
+    <owl:Class rdf:about="http://www.semanticweb.org/moon/ontologies/2026/8/untitled-ontology-9#Nurse">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/moon/ontologies/2026/8/untitled-ontology-9#Person"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.semanticweb.org/moon/ontologies/2026/8/untitled-ontology-9#Organization -->
+
+    <owl:Class rdf:about="http://www.semanticweb.org/moon/ontologies/2026/8/untitled-ontology-9#Organization"/>
+    
+
+
+    <!-- http://www.semanticweb.org/moon/ontologies/2026/8/untitled-ontology-9#Patient -->
+
+    <owl:Class rdf:about="http://www.semanticweb.org/moon/ontologies/2026/8/untitled-ontology-9#Patient">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/moon/ontologies/2026/8/untitled-ontology-9#Person"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.semanticweb.org/moon/ontologies/2026/8/untitled-ontology-9#Person -->
+
+    <owl:Class rdf:about="http://www.semanticweb.org/moon/ontologies/2026/8/untitled-ontology-9#Person"/>
+    
+
+
+    <!-- http://www.semanticweb.org/moon/ontologies/2026/8/untitled-ontology-9#Symptom -->
+
+    <owl:Class rdf:about="http://www.semanticweb.org/moon/ontologies/2026/8/untitled-ontology-9#Symptom">
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/moon/ontologies/2026/8/untitled-ontology-9#Mediacl_Entity"/>
+    </owl:Class>
+    
+
+
+    <!-- 
+    ///////////////////////////////////////////////////////////////////////////////////////
+    //
+    // Individuals
+    //
+    ///////////////////////////////////////////////////////////////////////////////////////
+     -->
+
+    
+
+
+    <!-- http://www.semanticweb.org/moon/ontologies/2026/8/untitled-ontology-9#Disease_001 -->
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/moon/ontologies/2026/8/untitled-ontology-9#Disease_001">
+        <rdf:type rdf:resource="http://www.semanticweb.org/moon/ontologies/2026/8/untitled-ontology-9#Disease"/>
+        <rdfs:label>流感</rdfs:label>
+    </owl:NamedIndividual>
+    
+
+
+    <!-- http://www.semanticweb.org/moon/ontologies/2026/8/untitled-ontology-9#Patient_ZhangSan -->
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/moon/ontologies/2026/8/untitled-ontology-9#Patient_ZhangSan">
+        <rdf:type rdf:resource="http://www.semanticweb.org/moon/ontologies/2026/8/untitled-ontology-9#Patient"/>
+    </owl:NamedIndividual>
+    
+
+
+    <!-- http://www.semanticweb.org/moon/ontologies/2026/8/untitled-ontology-9#Symptom_001 -->
+
+    <owl:NamedIndividual rdf:about="http://www.semanticweb.org/moon/ontologies/2026/8/untitled-ontology-9#Symptom_001">
+        <rdf:type rdf:resource="http://www.semanticweb.org/moon/ontologies/2026/8/untitled-ontology-9#Symptom"/>
+        <rdfs:label>高烧</rdfs:label>
+    </owl:NamedIndividual>
+</rdf:RDF>
+
+
+
+<!-- Generated by the OWL API (version 4.5.29.2024-05-13T12:11:03Z) https://github.com/owlcs/owlapi -->
+

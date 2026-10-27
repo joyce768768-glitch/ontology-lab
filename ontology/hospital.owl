@@ -1,0 +1,346 @@
+<?xml version="1.0"?>
+<!DOCTYPE rdf:RDF [
+    <!ENTITY owl "http://www.w3.org/2002/07/owl#">
+    <!ENTITY xsd "http://www.w3.org/2001/XMLSchema#">
+    <!ENTITY rdfs "http://www.w3.org/2000/01/rdf-schema#">
+    <!ENTITY rdf "http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+]>
+<rdf:RDF xmlns="http://www.semanticweb.org/hospital-ontology#"
+     xml:base="http://www.semanticweb.org/hospital-ontology"
+     xmlns:owl="&owl;"
+     xmlns:xsd="&xsd;"
+     xmlns:rdfs="&rdfs;"
+     xmlns:rdf="&rdf;">
+
+    <!-- ============================================================
+         本体元数据
+         医院本体教学系统 - TBox + RBox
+         类/属性设计与数据库 15 张表一一对应(见各元素 rdfs:comment)
+         ABox(患者/医生/就诊实例)由 backend/abox.py 胶水代码灌入
+         ============================================================ -->
+    <owl:Ontology rdf:about="http://www.semanticweb.org/hospital-ontology">
+        <rdfs:label xml:lang="zh">医院本体教学系统</rdfs:label>
+        <rdfs:comment>TBox(类层级) + RBox(属性公理)。
+对应数据库 ontology_hospital 的 15 张表:
+  主数据 9 张: department / patient / doctor / disease_dict / symptom_dict / drug / lab_test_dict / exam_dict / disease_symptom
+  业务事实 6 张: visit / diagnosis / symptom_record / prescription / prescription_item / allergy
+知识层核心关系: Disease --has_symptom--> Symptom (对应 disease_symptom 关联表)
+推理目标: 患者症状集合 -> 命中疾病的 has_symptom 集合 -> 疾病概率排序</rdfs:comment>
+        <owl:versionInfo>v0.1 TBox+RBox 初始版</owl:versionInfo>
+    </owl:Ontology>
+
+    <!-- ============================================================
+         TBox: 类层级
+         ============================================================ -->
+
+    <!-- 抽象基类: 人 (不直接产生实例, 由胶水代码只灌 Patient/Doctor) -->
+    <owl:Class rdf:about="http://www.semanticweb.org/hospital-ontology#Person">
+        <rdfs:label xml:lang="zh">人类</rdfs:label>
+        <rdfs:comment>抽象基类, 不直接实例化。Patient 和 Doctor 是它的子类。</rdfs:comment>
+    </owl:Class>
+
+    <!-- 患者 (对应 patient 表) -->
+    <owl:Class rdf:about="http://www.semanticweb.org/hospital-ontology#Patient">
+        <rdfs:label xml:lang="zh">患者</rdfs:label>
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/hospital-ontology#Person"/>
+        <rdfs:comment>对应 patient 表。核心属性: has_id_card (Functional)。</rdfs:comment>
+    </owl:Class>
+
+    <!-- 医生 (对应 doctor 表) -->
+    <owl:Class rdf:about="http://www.semanticweb.org/hospital-ontology#Doctor">
+        <rdfs:label xml:lang="zh">医生</rdfs:label>
+        <rdfs:subClassOf rdf:resource="http://www.semanticweb.org/hospital-ontology#Person"/>
+        <rdfs:comment>对应 doctor 表。通过 works_in 关联 Department。</rdfs:comment>
+    </owl:Class>
+
+    <!-- 疾病 (对应 disease_dict 字典表) -->
+    <owl:Class rdf:about="http://www.semanticweb.org/hospital-ontology#Disease">
+        <rdfs:label xml:lang="zh">疾病</rdfs:label>
+        <rdfs:comment>对应 disease_dict 表。has_disease_code 存 ICD-10 码。
+知识层: 通过 has_symptom 关联症状集合, 是诊断推理的核心节点。</rdfs:comment>
+    </owl:Class>
+
+    <!-- 症状 (对应 symptom_dict 字典表) -->
+    <owl:Class rdf:about="http://www.semanticweb.org/hospital-ontology#Symptom">
+        <rdfs:label xml:lang="zh">症状</rdfs:label>
+        <rdfs:comment>对应 symptom_dict 表。has_symptom_code 存 ICD-10 R 编码。
+一个症状 = 一个原子概念 (如"头痛"), 组合词在字典层拆分。</rdfs:comment>
+    </owl:Class>
+
+    <!-- 科室 (对应 department 表) -->
+    <owl:Class rdf:about="http://www.semanticweb.org/hospital-ontology#Department">
+        <rdfs:label xml:lang="zh">科室</rdfs:label>
+        <rdfs:comment>对应 department 表。层级结构 (parent_dept_id 自引用) 简化建模, 暂不建子类。</rdfs:comment>
+    </owl:Class>
+
+    <!-- 就诊 (对应 visit 表) -->
+    <owl:Class rdf:about="http://www.semanticweb.org/hospital-ontology#Visit">
+        <rdfs:label xml:lang="zh">就诊</rdfs:label>
+        <rdfs:comment>对应 visit 表。一次就诊 = 一个 Visit 实例。
+所有业务事实 (诊断/症状记录/处方) 都挂在 Visit 上。</rdfs:comment>
+    </owl:Class>
+
+    <!-- 药品 (对应 drug 表) -->
+    <owl:Class rdf:about="http://www.semanticweb.org/hospital-ontology#Drug">
+        <rdfs:label xml:lang="zh">药品</rdfs:label>
+        <rdfs:comment>对应 drug 表。has_drug_code 存药品编码。</rdfs:comment>
+    </owl:Class>
+
+    <!-- ============================================================
+         TBox 公理: 类互斥
+         六大实体类互斥 —— 推理机可检测"某个体既是疾病又是症状"这类错误
+         ============================================================ -->
+    <rdf:Description>
+        <rdf:type rdf:resource="&owl;AllDisjointClasses"/>
+        <owl:members rdf:parseType="Collection">
+            <rdf:Description rdf:about="http://www.semanticweb.org/hospital-ontology#Person"/>
+            <rdf:Description rdf:about="http://www.semanticweb.org/hospital-ontology#Disease"/>
+            <rdf:Description rdf:about="http://www.semanticweb.org/hospital-ontology#Symptom"/>
+            <rdf:Description rdf:about="http://www.semanticweb.org/hospital-ontology#Department"/>
+            <rdf:Description rdf:about="http://www.semanticweb.org/hospital-ontology#Visit"/>
+            <rdf:Description rdf:about="http://www.semanticweb.org/hospital-ontology#Drug"/>
+        </owl:members>
+    </rdf:Description>
+
+    <!-- ============================================================
+         RBox: 对象属性 (类与类之间的关系)
+         分两层: 知识层 (Disease↔Symptom) / 事实层 (Visit 相关)
+         ============================================================ -->
+
+    <!-- 【知识层核心】疾病 -> 症状 (对应 disease_symptom 关联表) -->
+    <owl:ObjectProperty rdf:about="http://www.semanticweb.org/hospital-ontology#has_symptom">
+        <rdfs:label xml:lang="zh">有症状(知识层)</rdfs:label>
+        <rdfs:domain rdf:resource="http://www.semanticweb.org/hospital-ontology#Disease"/>
+        <rdfs:range rdf:resource="http://www.semanticweb.org/hospital-ontology#Symptom"/>
+        <rdfs:comment>对应 disease_symptom 关联表 (disease_code, symptom_code, weight, is_primary)。
+诊断推理基础: 患者症状命中某疾病的 has_symptom 集合越多, 该疾病概率越高。
+注: weight/primary 是关联自身的属性, OWL 二元关系不直接表达, 保留在数据库层。</rdfs:comment>
+    </owl:ObjectProperty>
+
+    <!-- 【事实层】患者 -> 症状 (chat.html 对话产出的直接落点) -->
+    <owl:ObjectProperty rdf:about="http://www.semanticweb.org/hospital-ontology#exhibits_symptom">
+        <rdfs:label xml:lang="zh">表现出症状(事实层)</rdfs:label>
+        <rdfs:domain rdf:resource="http://www.semanticweb.org/hospital-ontology#Patient"/>
+        <rdfs:range rdf:resource="http://www.semanticweb.org/hospital-ontology#Symptom"/>
+        <rdfs:comment>患者当前表现出的症状。来源: chat.html 对话 -> 结构化 JSON -> 术语归一化 -> 胶水代码灌 ABox。
+推理机可结合 has_symptom (知识层) 推断疑似疾病。</rdfs:comment>
+    </owl:ObjectProperty>
+
+    <!-- 患者 -> 就诊 (对应 visit.patient_id) -->
+    <owl:ObjectProperty rdf:about="http://www.semanticweb.org/hospital-ontology#has_visit">
+        <rdfs:label xml:lang="zh">有就诊记录</rdfs:label>
+        <rdfs:domain rdf:resource="http://www.semanticweb.org/hospital-ontology#Patient"/>
+        <rdfs:range rdf:resource="http://www.semanticweb.org/hospital-ontology#Visit"/>
+        <rdfs:comment>对应 visit.patient_id 外键。</rdfs:comment>
+    </owl:ObjectProperty>
+
+    <!-- 就诊 -> 医生 (对应 visit.doctor_id) -->
+    <owl:ObjectProperty rdf:about="http://www.semanticweb.org/hospital-ontology#treated_by">
+        <rdfs:label xml:lang="zh">由医生接诊</rdfs:label>
+        <rdfs:domain rdf:resource="http://www.semanticweb.org/hospital-ontology#Visit"/>
+        <rdfs:range rdf:resource="http://www.semanticweb.org/hospital-ontology#Doctor"/>
+        <rdfs:comment>对应 visit.doctor_id 外键。</rdfs:comment>
+    </owl:ObjectProperty>
+
+    <!-- 就诊 -> 科室 (对应 visit.dept_id) -->
+    <owl:ObjectProperty rdf:about="http://www.semanticweb.org/hospital-ontology#treated_in">
+        <rdfs:label xml:lang="zh">就诊于科室</rdfs:label>
+        <rdfs:domain rdf:resource="http://www.semanticweb.org/hospital-ontology#Visit"/>
+        <rdfs:range rdf:resource="http://www.semanticweb.org/hospital-ontology#Department"/>
+        <rdfs:comment>对应 visit.dept_id 外键。</rdfs:comment>
+    </owl:ObjectProperty>
+
+    <!-- 就诊 -> 症状 (对应 symptom_record 表) -->
+    <owl:ObjectProperty rdf:about="http://www.semanticweb.org/hospital-ontology#recorded_symptom">
+        <rdfs:label xml:lang="zh">记录了症状</rdfs:label>
+        <rdfs:domain rdf:resource="http://www.semanticweb.org/hospital-ontology#Visit"/>
+        <rdfs:range rdf:resource="http://www.semanticweb.org/hospital-ontology#Symptom"/>
+        <rdfs:comment>对应 symptom_record 表 (visit_id, symptom_code, severity, duration_days)。
+severity/duration 挂在关联上, 同样简化建模, 保留在数据库层。</rdfs:comment>
+    </owl:ObjectProperty>
+
+    <!-- 就诊 -> 疾病 (对应 diagnosis 表) -->
+    <owl:ObjectProperty rdf:about="http://www.semanticweb.org/hospital-ontology#diagnosed_with">
+        <rdfs:label xml:lang="zh">诊断为疾病</rdfs:label>
+        <rdfs:domain rdf:resource="http://www.semanticweb.org/hospital-ontology#Visit"/>
+        <rdfs:range rdf:resource="http://www.semanticweb.org/hospital-ontology#Disease"/>
+        <rdfs:comment>对应 diagnosis 表 (visit_id, disease_code, diagnosis_type)。</rdfs:comment>
+    </owl:ObjectProperty>
+
+    <!-- 就诊 -> 药品 (对应 prescription + prescription_item 表) -->
+    <owl:ObjectProperty rdf:about="http://www.semanticweb.org/hospital-ontology#prescribed_drug">
+        <rdfs:label xml:lang="zh">开具了药品</rdfs:label>
+        <rdfs:domain rdf:resource="http://www.semanticweb.org/hospital-ontology#Visit"/>
+        <rdfs:range rdf:resource="http://www.semanticweb.org/hospital-ontology#Drug"/>
+        <rdfs:comment>对应 prescription + prescription_item 两张表合并。
+处方主/明细结构在数据库层保留, 本体简化为 Visit 直连 Drug。</rdfs:comment>
+    </owl:ObjectProperty>
+
+    <!-- 医生 -> 科室 (对应 doctor.dept_id) -->
+    <owl:ObjectProperty rdf:about="http://www.semanticweb.org/hospital-ontology#works_in">
+        <rdfs:label xml:lang="zh">任职于科室</rdfs:label>
+        <rdfs:domain rdf:resource="http://www.semanticweb.org/hospital-ontology#Doctor"/>
+        <rdfs:range rdf:resource="http://www.semanticweb.org/hospital-ontology#Department"/>
+        <rdfs:comment>对应 doctor.dept_id 外键。</rdfs:comment>
+    </owl:ObjectProperty>
+
+    <!-- 患者 -> 药品过敏 (对应 allergy 表) -->
+    <owl:ObjectProperty rdf:about="http://www.semanticweb.org/hospital-ontology#allergic_to">
+        <rdfs:label xml:lang="zh">对药品过敏</rdfs:label>
+        <rdfs:domain rdf:resource="http://www.semanticweb.org/hospital-ontology#Patient"/>
+        <rdfs:range rdf:resource="http://www.semanticweb.org/hospital-ontology#Drug"/>
+        <rdfs:comment>对应 allergy 表。allergen_type 支持药品/食物/其他, 本体简化只连 Drug。
+临床价值: 开处方前校验 prescribed_drug 与 allergic_to 是否冲突。</rdfs:comment>
+    </owl:ObjectProperty>
+
+    <!-- ============================================================
+         RBox: 数据属性 (实例的数值/文本字段)
+         domain = 所属类, range = XSD 数据类型, 均对应数据库列
+         ============================================================ -->
+
+    <!-- ===== Person 通用 ===== -->
+    <owl:DatatypeProperty rdf:about="http://www.semanticweb.org/hospital-ontology#has_name">
+        <rdfs:label xml:lang="zh">姓名/名称</rdfs:label>
+        <rdfs:domain rdf:resource="&owl;Thing"/>
+        <rdfs:range rdf:resource="&xsd;string"/>
+        <rdfs:comment>所有实体的通用名称属性(患者姓名/疾病名/症状名/药品名等)。
+domain 设为 Thing 而非 Person,因为疾病/症状/药品等也有名称。</rdfs:comment>
+    </owl:DatatypeProperty>
+
+    <owl:DatatypeProperty rdf:about="http://www.semanticweb.org/hospital-ontology#has_gender">
+        <rdfs:label xml:lang="zh">性别</rdfs:label>
+        <rdfs:domain rdf:resource="http://www.semanticweb.org/hospital-ontology#Person"/>
+        <rdfs:range rdf:resource="&xsd;string"/>
+        <rdfs:comment>对应 patient.gender / doctor 无。取值 M/F, 严格化可用枚举 (后续可升级)。</rdfs:comment>
+    </owl:DatatypeProperty>
+
+    <owl:DatatypeProperty rdf:about="http://www.semanticweb.org/hospital-ontology#has_birth_date">
+        <rdfs:label xml:lang="zh">出生日期</rdfs:label>
+        <rdfs:domain rdf:resource="http://www.semanticweb.org/hospital-ontology#Person"/>
+        <rdfs:range rdf:resource="&xsd;string"/>
+        <rdfs:comment>对应 patient.birth_date。用 string 存储(OWL 2 不支持 xsd:date)。</rdfs:comment>
+    </owl:DatatypeProperty>
+
+    <owl:DatatypeProperty rdf:about="http://www.semanticweb.org/hospital-ontology#has_age">
+        <rdfs:label xml:lang="zh">年龄</rdfs:label>
+        <rdfs:domain rdf:resource="http://www.semanticweb.org/hospital-ontology#Person"/>
+        <rdfs:range rdf:resource="&xsd;integer"/>
+        <rdfs:comment>chat.html 对话输入常给年龄而非生日, 胶水代码可直接写此属性。</rdfs:comment>
+    </owl:DatatypeProperty>
+
+    <!-- ===== Patient 专属 ===== -->
+    <rdf:Description rdf:about="http://www.semanticweb.org/hospital-ontology#has_id_card">
+        <rdf:type rdf:resource="&owl;FunctionalProperty"/>
+        <rdf:type rdf:resource="&owl;DatatypeProperty"/>
+        <rdfs:label xml:lang="zh">身份证号</rdfs:label>
+        <rdfs:domain rdf:resource="http://www.semanticweb.org/hospital-ontology#Patient"/>
+        <rdfs:range rdf:resource="&xsd;string"/>
+        <rdfs:comment>对应 patient.id_card。
+Functional 语义: 一个患者至多有一个身份证号 (呼应 data.js 注释 has_id_card (Functional))。</rdfs:comment>
+    </rdf:Description>
+
+    <owl:DatatypeProperty rdf:about="http://www.semanticweb.org/hospital-ontology#has_phone">
+        <rdfs:label xml:lang="zh">联系电话</rdfs:label>
+        <rdfs:domain rdf:resource="http://www.semanticweb.org/hospital-ontology#Patient"/>
+        <rdfs:range rdf:resource="&xsd;string"/>
+        <rdfs:comment>对应 patient.phone。</rdfs:comment>
+    </owl:DatatypeProperty>
+
+    <!-- ===== Doctor 专属 ===== -->
+    <owl:DatatypeProperty rdf:about="http://www.semanticweb.org/hospital-ontology#has_title">
+        <rdfs:label xml:lang="zh">职称</rdfs:label>
+        <rdfs:domain rdf:resource="http://www.semanticweb.org/hospital-ontology#Doctor"/>
+        <rdfs:range rdf:resource="&xsd;string"/>
+        <rdfs:comment>对应 doctor.title (主任医师/副主任医师/主治医师…)。</rdfs:comment>
+    </owl:DatatypeProperty>
+
+    <!-- ===== Disease 专属 ===== -->
+    <owl:DatatypeProperty rdf:about="http://www.semanticweb.org/hospital-ontology#has_disease_code">
+        <rdfs:label xml:lang="zh">ICD-10编码</rdfs:label>
+        <rdfs:domain rdf:resource="http://www.semanticweb.org/hospital-ontology#Disease"/>
+        <rdfs:range rdf:resource="&xsd;string"/>
+        <rdfs:comment>对应 disease_dict.disease_code。本体实例与数据库行的桥接键。</rdfs:comment>
+    </owl:DatatypeProperty>
+
+    <owl:DatatypeProperty rdf:about="http://www.semanticweb.org/hospital-ontology#has_category">
+        <rdfs:label xml:lang="zh">疾病分类</rdfs:label>
+        <rdfs:domain rdf:resource="http://www.semanticweb.org/hospital-ontology#Disease"/>
+        <rdfs:range rdf:resource="&xsd;string"/>
+        <rdfs:comment>对应 disease_dict.category (心血管/内分泌/呼吸…)。</rdfs:comment>
+    </owl:DatatypeProperty>
+
+    <owl:DatatypeProperty rdf:about="http://www.semanticweb.org/hospital-ontology#is_chronic">
+        <rdfs:label xml:lang="zh">是否慢性病</rdfs:label>
+        <rdfs:domain rdf:resource="http://www.semanticweb.org/hospital-ontology#Disease"/>
+        <rdfs:range rdf:resource="&xsd;boolean"/>
+        <rdfs:comment>对应 disease_dict.is_chronic。</rdfs:comment>
+    </owl:DatatypeProperty>
+
+    <!-- ===== Symptom 专属 ===== -->
+    <owl:DatatypeProperty rdf:about="http://www.semanticweb.org/hospital-ontology#has_symptom_code">
+        <rdfs:label xml:lang="zh">症状编码</rdfs:label>
+        <rdfs:domain rdf:resource="http://www.semanticweb.org/hospital-ontology#Symptom"/>
+        <rdfs:range rdf:resource="&xsd;string"/>
+        <rdfs:comment>对应 symptom_dict.symptom_code (ICD-10 R 编码)。桥接键。</rdfs:comment>
+    </owl:DatatypeProperty>
+
+    <owl:DatatypeProperty rdf:about="http://www.semanticweb.org/hospital-ontology#has_body_part">
+        <rdfs:label xml:lang="zh">部位</rdfs:label>
+        <rdfs:domain rdf:resource="http://www.semanticweb.org/hospital-ontology#Symptom"/>
+        <rdfs:range rdf:resource="&xsd;string"/>
+        <rdfs:comment>对应 symptom_dict.body_part (头部/胸部/腹部…)。</rdfs:comment>
+    </owl:DatatypeProperty>
+
+    <owl:DatatypeProperty rdf:about="http://www.semanticweb.org/hospital-ontology#has_severity">
+        <rdfs:label xml:lang="zh">严重程度</rdfs:label>
+        <rdfs:domain rdf:resource="http://www.semanticweb.org/hospital-ontology#Symptom"/>
+        <rdfs:range rdf:resource="&xsd;string"/>
+        <rdfs:comment>简化建模: 实际是 symptom_record 关联自身的属性 (轻/中/重), 保留在数据库层。</rdfs:comment>
+    </owl:DatatypeProperty>
+
+    <!-- ===== Department 专属 ===== -->
+    <owl:DatatypeProperty rdf:about="http://www.semanticweb.org/hospital-ontology#has_dept_code">
+        <rdfs:label xml:lang="zh">科室编码</rdfs:label>
+        <rdfs:domain rdf:resource="http://www.semanticweb.org/hospital-ontology#Department"/>
+        <rdfs:range rdf:resource="&xsd;string"/>
+        <rdfs:comment>对应 department.dept_code (DEPT-CARD…)。桥接键。</rdfs:comment>
+    </owl:DatatypeProperty>
+
+    <!-- ===== Drug 专属 ===== -->
+    <owl:DatatypeProperty rdf:about="http://www.semanticweb.org/hospital-ontology#has_drug_code">
+        <rdfs:label xml:lang="zh">药品编码</rdfs:label>
+        <rdfs:domain rdf:resource="http://www.semanticweb.org/hospital-ontology#Drug"/>
+        <rdfs:range rdf:resource="&xsd;string"/>
+        <rdfs:comment>对应 drug.drug_code。桥接键。</rdfs:comment>
+    </owl:DatatypeProperty>
+
+    <owl:DatatypeProperty rdf:about="http://www.semanticweb.org/hospital-ontology#has_specification">
+        <rdfs:label xml:lang="zh">规格</rdfs:label>
+        <rdfs:domain rdf:resource="http://www.semanticweb.org/hospital-ontology#Drug"/>
+        <rdfs:range rdf:resource="&xsd;string"/>
+        <rdfs:comment>对应 drug.specification (如 100mg*30片)。</rdfs:comment>
+    </owl:DatatypeProperty>
+
+    <!-- ===== Visit 专属 ===== -->
+    <owl:DatatypeProperty rdf:about="http://www.semanticweb.org/hospital-ontology#has_visit_type">
+        <rdfs:label xml:lang="zh">就诊类型</rdfs:label>
+        <rdfs:domain rdf:resource="http://www.semanticweb.org/hospital-ontology#Visit"/>
+        <rdfs:range rdf:resource="&xsd;string"/>
+        <rdfs:comment>对应 visit.visit_type (初诊/复诊/急诊)。</rdfs:comment>
+    </owl:DatatypeProperty>
+
+    <owl:DatatypeProperty rdf:about="http://www.semanticweb.org/hospital-ontology#has_visit_time">
+        <rdfs:label xml:lang="zh">就诊时间</rdfs:label>
+        <rdfs:domain rdf:resource="http://www.semanticweb.org/hospital-ontology#Visit"/>
+        <rdfs:range rdf:resource="&xsd;string"/>
+        <rdfs:comment>对应 visit.visit_time。用 string 存储(简化处理)。</rdfs:comment>
+    </owl:DatatypeProperty>
+
+    <owl:DatatypeProperty rdf:about="http://www.semanticweb.org/hospital-ontology#has_chief_complaint">
+        <rdfs:label xml:lang="zh">主诉</rdfs:label>
+        <rdfs:domain rdf:resource="http://www.semanticweb.org/hospital-ontology#Visit"/>
+        <rdfs:range rdf:resource="&xsd;string"/>
+        <rdfs:comment>对应 visit.chief_complaint。chat.html 产出的 chief_complaint 字段直接落这里。</rdfs:comment>
+    </owl:DatatypeProperty>
+
+</rdf:RDF>

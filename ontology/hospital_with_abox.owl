@@ -1,0 +1,960 @@
+<?xml version="1.0"?>
+<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+         xmlns:xsd="http://www.w3.org/2001/XMLSchema#"
+         xmlns:rdfs="http://www.w3.org/2000/01/rdf-schema#"
+         xmlns:owl="http://www.w3.org/2002/07/owl#"
+         xml:base="http://www.semanticweb.org/hospital-ontology"
+         xmlns="http://www.semanticweb.org/hospital-ontology#">
+
+<owl:Ontology rdf:about="http://www.semanticweb.org/hospital-ontology">
+  <rdfs:label xml:lang="zh">医院本体教学系统</rdfs:label>
+  <rdfs:comment rdf:datatype="http://www.w3.org/2001/XMLSchema#string">TBox(类层级) + RBox(属性公理)。
+对应数据库 ontology_hospital 的 15 张表:
+  主数据 9 张: department / patient / doctor / disease_dict / symptom_dict / drug / lab_test_dict / exam_dict / disease_symptom
+  业务事实 6 张: visit / diagnosis / symptom_record / prescription / prescription_item / allergy
+知识层核心关系: Disease --has_symptom--&gt; Symptom (对应 disease_symptom 关联表)
+推理目标: 患者症状集合 -&gt; 命中疾病的 has_symptom 集合 -&gt; 疾病概率排序</rdfs:comment>
+  <owl:versionInfo rdf:datatype="http://www.w3.org/2001/XMLSchema#string">v0.1 TBox+RBox 初始版</owl:versionInfo>
+</owl:Ontology>
+
+<owl:ObjectProperty rdf:about="#has_symptom">
+  <rdfs:domain rdf:resource="#Disease"/>
+  <rdfs:range rdf:resource="#Symptom"/>
+  <rdfs:label xml:lang="zh">有症状(知识层)</rdfs:label>
+  <rdfs:comment rdf:datatype="http://www.w3.org/2001/XMLSchema#string">对应 disease_symptom 关联表 (disease_code, symptom_code, weight, is_primary)。
+诊断推理基础: 患者症状命中某疾病的 has_symptom 集合越多, 该疾病概率越高。
+注: weight/primary 是关联自身的属性, OWL 二元关系不直接表达, 保留在数据库层。</rdfs:comment>
+</owl:ObjectProperty>
+
+<owl:ObjectProperty rdf:about="#exhibits_symptom">
+  <rdfs:domain rdf:resource="#Patient"/>
+  <rdfs:range rdf:resource="#Symptom"/>
+  <rdfs:label xml:lang="zh">表现出症状(事实层)</rdfs:label>
+  <rdfs:comment rdf:datatype="http://www.w3.org/2001/XMLSchema#string">患者当前表现出的症状。来源: chat.html 对话 -&gt; 结构化 JSON -&gt; 术语归一化 -&gt; 胶水代码灌 ABox。
+推理机可结合 has_symptom (知识层) 推断疑似疾病。</rdfs:comment>
+</owl:ObjectProperty>
+
+<owl:ObjectProperty rdf:about="#has_visit">
+  <rdfs:domain rdf:resource="#Patient"/>
+  <rdfs:range rdf:resource="#Visit"/>
+  <rdfs:label xml:lang="zh">有就诊记录</rdfs:label>
+  <rdfs:comment rdf:datatype="http://www.w3.org/2001/XMLSchema#string">对应 visit.patient_id 外键。</rdfs:comment>
+</owl:ObjectProperty>
+
+<owl:ObjectProperty rdf:about="#treated_by">
+  <rdfs:domain rdf:resource="#Visit"/>
+  <rdfs:range rdf:resource="#Doctor"/>
+  <rdfs:label xml:lang="zh">由医生接诊</rdfs:label>
+  <rdfs:comment rdf:datatype="http://www.w3.org/2001/XMLSchema#string">对应 visit.doctor_id 外键。</rdfs:comment>
+</owl:ObjectProperty>
+
+<owl:ObjectProperty rdf:about="#treated_in">
+  <rdfs:domain rdf:resource="#Visit"/>
+  <rdfs:range rdf:resource="#Department"/>
+  <rdfs:label xml:lang="zh">就诊于科室</rdfs:label>
+  <rdfs:comment rdf:datatype="http://www.w3.org/2001/XMLSchema#string">对应 visit.dept_id 外键。</rdfs:comment>
+</owl:ObjectProperty>
+
+<owl:ObjectProperty rdf:about="#recorded_symptom">
+  <rdfs:domain rdf:resource="#Visit"/>
+  <rdfs:range rdf:resource="#Symptom"/>
+  <rdfs:label xml:lang="zh">记录了症状</rdfs:label>
+  <rdfs:comment rdf:datatype="http://www.w3.org/2001/XMLSchema#string">对应 symptom_record 表 (visit_id, symptom_code, severity, duration_days)。
+severity/duration 挂在关联上, 同样简化建模, 保留在数据库层。</rdfs:comment>
+</owl:ObjectProperty>
+
+<owl:ObjectProperty rdf:about="#diagnosed_with">
+  <rdfs:domain rdf:resource="#Visit"/>
+  <rdfs:range rdf:resource="#Disease"/>
+  <rdfs:label xml:lang="zh">诊断为疾病</rdfs:label>
+  <rdfs:comment rdf:datatype="http://www.w3.org/2001/XMLSchema#string">对应 diagnosis 表 (visit_id, disease_code, diagnosis_type)。</rdfs:comment>
+</owl:ObjectProperty>
+
+<owl:ObjectProperty rdf:about="#prescribed_drug">
+  <rdfs:domain rdf:resource="#Visit"/>
+  <rdfs:range rdf:resource="#Drug"/>
+  <rdfs:label xml:lang="zh">开具了药品</rdfs:label>
+  <rdfs:comment rdf:datatype="http://www.w3.org/2001/XMLSchema#string">对应 prescription + prescription_item 两张表合并。
+处方主/明细结构在数据库层保留, 本体简化为 Visit 直连 Drug。</rdfs:comment>
+</owl:ObjectProperty>
+
+<owl:ObjectProperty rdf:about="#works_in">
+  <rdfs:domain rdf:resource="#Doctor"/>
+  <rdfs:range rdf:resource="#Department"/>
+  <rdfs:label xml:lang="zh">任职于科室</rdfs:label>
+  <rdfs:comment rdf:datatype="http://www.w3.org/2001/XMLSchema#string">对应 doctor.dept_id 外键。</rdfs:comment>
+</owl:ObjectProperty>
+
+<owl:ObjectProperty rdf:about="#allergic_to">
+  <rdfs:domain rdf:resource="#Patient"/>
+  <rdfs:range rdf:resource="#Drug"/>
+  <rdfs:label xml:lang="zh">对药品过敏</rdfs:label>
+  <rdfs:comment rdf:datatype="http://www.w3.org/2001/XMLSchema#string">对应 allergy 表。allergen_type 支持药品/食物/其他, 本体简化只连 Drug。
+临床价值: 开处方前校验 prescribed_drug 与 allergic_to 是否冲突。</rdfs:comment>
+</owl:ObjectProperty>
+
+<owl:DatatypeProperty rdf:about="#has_name">
+  <rdfs:domain rdf:resource="http://www.w3.org/2002/07/owl#Thing"/>
+  <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+  <rdfs:label xml:lang="zh">姓名/名称</rdfs:label>
+  <rdfs:comment rdf:datatype="http://www.w3.org/2001/XMLSchema#string">所有实体的通用名称属性(患者姓名/疾病名/症状名/药品名等)。
+domain 设为 Thing 而非 Person,因为疾病/症状/药品等也有名称。</rdfs:comment>
+</owl:DatatypeProperty>
+
+<owl:DatatypeProperty rdf:about="#has_gender">
+  <rdfs:domain rdf:resource="#Person"/>
+  <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+  <rdfs:label xml:lang="zh">性别</rdfs:label>
+  <rdfs:comment rdf:datatype="http://www.w3.org/2001/XMLSchema#string">对应 patient.gender / doctor 无。取值 M/F, 严格化可用枚举 (后续可升级)。</rdfs:comment>
+</owl:DatatypeProperty>
+
+<owl:DatatypeProperty rdf:about="#has_birth_date">
+  <rdfs:domain rdf:resource="#Person"/>
+  <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+  <rdfs:label xml:lang="zh">出生日期</rdfs:label>
+  <rdfs:comment rdf:datatype="http://www.w3.org/2001/XMLSchema#string">对应 patient.birth_date。用 string 存储(OWL 2 不支持 xsd:date)。</rdfs:comment>
+</owl:DatatypeProperty>
+
+<owl:DatatypeProperty rdf:about="#has_age">
+  <rdfs:domain rdf:resource="#Person"/>
+  <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#integer"/>
+  <rdfs:label xml:lang="zh">年龄</rdfs:label>
+  <rdfs:comment rdf:datatype="http://www.w3.org/2001/XMLSchema#string">chat.html 对话输入常给年龄而非生日, 胶水代码可直接写此属性。</rdfs:comment>
+</owl:DatatypeProperty>
+
+<owl:DatatypeProperty rdf:about="#has_id_card">
+  <rdf:type rdf:resource="http://www.w3.org/2002/07/owl#FunctionalProperty"/>
+  <rdfs:domain rdf:resource="#Patient"/>
+  <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+  <rdfs:label xml:lang="zh">身份证号</rdfs:label>
+  <rdfs:comment rdf:datatype="http://www.w3.org/2001/XMLSchema#string">对应 patient.id_card。
+Functional 语义: 一个患者至多有一个身份证号 (呼应 data.js 注释 has_id_card (Functional))。</rdfs:comment>
+</owl:DatatypeProperty>
+
+<owl:DatatypeProperty rdf:about="#has_phone">
+  <rdfs:domain rdf:resource="#Patient"/>
+  <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+  <rdfs:label xml:lang="zh">联系电话</rdfs:label>
+  <rdfs:comment rdf:datatype="http://www.w3.org/2001/XMLSchema#string">对应 patient.phone。</rdfs:comment>
+</owl:DatatypeProperty>
+
+<owl:DatatypeProperty rdf:about="#has_title">
+  <rdfs:domain rdf:resource="#Doctor"/>
+  <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+  <rdfs:label xml:lang="zh">职称</rdfs:label>
+  <rdfs:comment rdf:datatype="http://www.w3.org/2001/XMLSchema#string">对应 doctor.title (主任医师/副主任医师/主治医师…)。</rdfs:comment>
+</owl:DatatypeProperty>
+
+<owl:DatatypeProperty rdf:about="#has_disease_code">
+  <rdfs:domain rdf:resource="#Disease"/>
+  <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+  <rdfs:label xml:lang="zh">ICD-10编码</rdfs:label>
+  <rdfs:comment rdf:datatype="http://www.w3.org/2001/XMLSchema#string">对应 disease_dict.disease_code。本体实例与数据库行的桥接键。</rdfs:comment>
+</owl:DatatypeProperty>
+
+<owl:DatatypeProperty rdf:about="#has_category">
+  <rdfs:domain rdf:resource="#Disease"/>
+  <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+  <rdfs:label xml:lang="zh">疾病分类</rdfs:label>
+  <rdfs:comment rdf:datatype="http://www.w3.org/2001/XMLSchema#string">对应 disease_dict.category (心血管/内分泌/呼吸…)。</rdfs:comment>
+</owl:DatatypeProperty>
+
+<owl:DatatypeProperty rdf:about="#is_chronic">
+  <rdfs:domain rdf:resource="#Disease"/>
+  <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#boolean"/>
+  <rdfs:label xml:lang="zh">是否慢性病</rdfs:label>
+  <rdfs:comment rdf:datatype="http://www.w3.org/2001/XMLSchema#string">对应 disease_dict.is_chronic。</rdfs:comment>
+</owl:DatatypeProperty>
+
+<owl:DatatypeProperty rdf:about="#has_symptom_code">
+  <rdfs:domain rdf:resource="#Symptom"/>
+  <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+  <rdfs:label xml:lang="zh">症状编码</rdfs:label>
+  <rdfs:comment rdf:datatype="http://www.w3.org/2001/XMLSchema#string">对应 symptom_dict.symptom_code (ICD-10 R 编码)。桥接键。</rdfs:comment>
+</owl:DatatypeProperty>
+
+<owl:DatatypeProperty rdf:about="#has_body_part">
+  <rdfs:domain rdf:resource="#Symptom"/>
+  <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+  <rdfs:label xml:lang="zh">部位</rdfs:label>
+  <rdfs:comment rdf:datatype="http://www.w3.org/2001/XMLSchema#string">对应 symptom_dict.body_part (头部/胸部/腹部…)。</rdfs:comment>
+</owl:DatatypeProperty>
+
+<owl:DatatypeProperty rdf:about="#has_severity">
+  <rdfs:domain rdf:resource="#Symptom"/>
+  <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+  <rdfs:label xml:lang="zh">严重程度</rdfs:label>
+  <rdfs:comment rdf:datatype="http://www.w3.org/2001/XMLSchema#string">简化建模: 实际是 symptom_record 关联自身的属性 (轻/中/重), 保留在数据库层。</rdfs:comment>
+</owl:DatatypeProperty>
+
+<owl:DatatypeProperty rdf:about="#has_dept_code">
+  <rdfs:domain rdf:resource="#Department"/>
+  <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+  <rdfs:label xml:lang="zh">科室编码</rdfs:label>
+  <rdfs:comment rdf:datatype="http://www.w3.org/2001/XMLSchema#string">对应 department.dept_code (DEPT-CARD…)。桥接键。</rdfs:comment>
+</owl:DatatypeProperty>
+
+<owl:DatatypeProperty rdf:about="#has_drug_code">
+  <rdfs:domain rdf:resource="#Drug"/>
+  <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+  <rdfs:label xml:lang="zh">药品编码</rdfs:label>
+  <rdfs:comment rdf:datatype="http://www.w3.org/2001/XMLSchema#string">对应 drug.drug_code。桥接键。</rdfs:comment>
+</owl:DatatypeProperty>
+
+<owl:DatatypeProperty rdf:about="#has_specification">
+  <rdfs:domain rdf:resource="#Drug"/>
+  <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+  <rdfs:label xml:lang="zh">规格</rdfs:label>
+  <rdfs:comment rdf:datatype="http://www.w3.org/2001/XMLSchema#string">对应 drug.specification (如 100mg*30片)。</rdfs:comment>
+</owl:DatatypeProperty>
+
+<owl:DatatypeProperty rdf:about="#has_visit_type">
+  <rdfs:domain rdf:resource="#Visit"/>
+  <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+  <rdfs:label xml:lang="zh">就诊类型</rdfs:label>
+  <rdfs:comment rdf:datatype="http://www.w3.org/2001/XMLSchema#string">对应 visit.visit_type (初诊/复诊/急诊)。</rdfs:comment>
+</owl:DatatypeProperty>
+
+<owl:DatatypeProperty rdf:about="#has_visit_time">
+  <rdfs:domain rdf:resource="#Visit"/>
+  <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+  <rdfs:label xml:lang="zh">就诊时间</rdfs:label>
+  <rdfs:comment rdf:datatype="http://www.w3.org/2001/XMLSchema#string">对应 visit.visit_time。用 string 存储(简化处理)。</rdfs:comment>
+</owl:DatatypeProperty>
+
+<owl:DatatypeProperty rdf:about="#has_chief_complaint">
+  <rdfs:domain rdf:resource="#Visit"/>
+  <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+  <rdfs:label xml:lang="zh">主诉</rdfs:label>
+  <rdfs:comment rdf:datatype="http://www.w3.org/2001/XMLSchema#string">对应 visit.chief_complaint。chat.html 产出的 chief_complaint 字段直接落这里。</rdfs:comment>
+</owl:DatatypeProperty>
+
+<owl:Class rdf:about="#Person">
+  <rdfs:label xml:lang="zh">人类</rdfs:label>
+  <rdfs:comment rdf:datatype="http://www.w3.org/2001/XMLSchema#string">抽象基类, 不直接实例化。Patient 和 Doctor 是它的子类。</rdfs:comment>
+</owl:Class>
+
+<owl:Class rdf:about="#Patient">
+  <rdfs:subClassOf rdf:resource="#Person"/>
+  <rdfs:label xml:lang="zh">患者</rdfs:label>
+  <rdfs:comment rdf:datatype="http://www.w3.org/2001/XMLSchema#string">对应 patient 表。核心属性: has_id_card (Functional)。</rdfs:comment>
+</owl:Class>
+
+<owl:Class rdf:about="#Doctor">
+  <rdfs:subClassOf rdf:resource="#Person"/>
+  <rdfs:label xml:lang="zh">医生</rdfs:label>
+  <rdfs:comment rdf:datatype="http://www.w3.org/2001/XMLSchema#string">对应 doctor 表。通过 works_in 关联 Department。</rdfs:comment>
+</owl:Class>
+
+<owl:Class rdf:about="#Disease">
+  <rdfs:label xml:lang="zh">疾病</rdfs:label>
+  <rdfs:comment rdf:datatype="http://www.w3.org/2001/XMLSchema#string">对应 disease_dict 表。has_disease_code 存 ICD-10 码。
+知识层: 通过 has_symptom 关联症状集合, 是诊断推理的核心节点。</rdfs:comment>
+</owl:Class>
+
+<owl:Class rdf:about="#Symptom">
+  <rdfs:label xml:lang="zh">症状</rdfs:label>
+  <rdfs:comment rdf:datatype="http://www.w3.org/2001/XMLSchema#string">对应 symptom_dict 表。has_symptom_code 存 ICD-10 R 编码。
+一个症状 = 一个原子概念 (如"头痛"), 组合词在字典层拆分。</rdfs:comment>
+</owl:Class>
+
+<owl:Class rdf:about="#Department">
+  <rdfs:label xml:lang="zh">科室</rdfs:label>
+  <rdfs:comment rdf:datatype="http://www.w3.org/2001/XMLSchema#string">对应 department 表。层级结构 (parent_dept_id 自引用) 简化建模, 暂不建子类。</rdfs:comment>
+</owl:Class>
+
+<owl:Class rdf:about="#Visit">
+  <rdfs:label xml:lang="zh">就诊</rdfs:label>
+  <rdfs:comment rdf:datatype="http://www.w3.org/2001/XMLSchema#string">对应 visit 表。一次就诊 = 一个 Visit 实例。
+所有业务事实 (诊断/症状记录/处方) 都挂在 Visit 上。</rdfs:comment>
+</owl:Class>
+
+<owl:Class rdf:about="#Drug">
+  <rdfs:label xml:lang="zh">药品</rdfs:label>
+  <rdfs:comment rdf:datatype="http://www.w3.org/2001/XMLSchema#string">对应 drug 表。has_drug_code 存药品编码。</rdfs:comment>
+</owl:Class>
+
+<owl:NamedIndividual rdf:about="#dept_1">
+  <rdf:type rdf:resource="#Department"/>
+  <has_name rdf:datatype="http://www.w3.org/2001/XMLSchema#string">心内科</has_name>
+  <has_dept_code rdf:datatype="http://www.w3.org/2001/XMLSchema#string">DEPT-CARD</has_dept_code>
+</owl:NamedIndividual>
+
+<owl:NamedIndividual rdf:about="#dept_2">
+  <rdf:type rdf:resource="#Department"/>
+  <has_name rdf:datatype="http://www.w3.org/2001/XMLSchema#string">内分泌科</has_name>
+  <has_dept_code rdf:datatype="http://www.w3.org/2001/XMLSchema#string">DEPT-ENDO</has_dept_code>
+</owl:NamedIndividual>
+
+<owl:NamedIndividual rdf:about="#dept_3">
+  <rdf:type rdf:resource="#Department"/>
+  <has_name rdf:datatype="http://www.w3.org/2001/XMLSchema#string">呼吸科</has_name>
+  <has_dept_code rdf:datatype="http://www.w3.org/2001/XMLSchema#string">DEPT-RESP</has_dept_code>
+</owl:NamedIndividual>
+
+<owl:NamedIndividual rdf:about="#dept_4">
+  <rdf:type rdf:resource="#Department"/>
+  <has_name rdf:datatype="http://www.w3.org/2001/XMLSchema#string">神经内科</has_name>
+  <has_dept_code rdf:datatype="http://www.w3.org/2001/XMLSchema#string">DEPT-NEUR</has_dept_code>
+</owl:NamedIndividual>
+
+<owl:NamedIndividual rdf:about="#dept_5">
+  <rdf:type rdf:resource="#Department"/>
+  <has_name rdf:datatype="http://www.w3.org/2001/XMLSchema#string">消化内科</has_name>
+  <has_dept_code rdf:datatype="http://www.w3.org/2001/XMLSchema#string">DEPT-GAST</has_dept_code>
+</owl:NamedIndividual>
+
+<owl:NamedIndividual rdf:about="#patient_1">
+  <rdf:type rdf:resource="#Patient"/>
+  <has_visit rdf:resource="#visit_1"/>
+  <has_visit rdf:resource="#visit_5"/>
+  <allergic_to rdf:resource="#J01A"/>
+  <has_name rdf:datatype="http://www.w3.org/2001/XMLSchema#string">张三</has_name>
+  <has_gender rdf:datatype="http://www.w3.org/2001/XMLSchema#string">M</has_gender>
+  <has_birth_date rdf:datatype="http://www.w3.org/2001/XMLSchema#string">1980-01-01</has_birth_date>
+  <has_id_card rdf:datatype="http://www.w3.org/2001/XMLSchema#string">440101199001011234</has_id_card>
+</owl:NamedIndividual>
+
+<owl:NamedIndividual rdf:about="#patient_2">
+  <rdf:type rdf:resource="#Patient"/>
+  <has_visit rdf:resource="#visit_2"/>
+  <has_visit rdf:resource="#visit_7"/>
+  <has_name rdf:datatype="http://www.w3.org/2001/XMLSchema#string">李娜</has_name>
+  <has_gender rdf:datatype="http://www.w3.org/2001/XMLSchema#string">F</has_gender>
+  <has_birth_date rdf:datatype="http://www.w3.org/2001/XMLSchema#string">1975-05-12</has_birth_date>
+  <has_id_card rdf:datatype="http://www.w3.org/2001/XMLSchema#string">440106197505123456</has_id_card>
+</owl:NamedIndividual>
+
+<owl:NamedIndividual rdf:about="#patient_3">
+  <rdf:type rdf:resource="#Patient"/>
+  <has_visit rdf:resource="#visit_3"/>
+  <has_visit rdf:resource="#visit_8"/>
+  <has_name rdf:datatype="http://www.w3.org/2001/XMLSchema#string">王五</has_name>
+  <has_gender rdf:datatype="http://www.w3.org/2001/XMLSchema#string">M</has_gender>
+  <has_birth_date rdf:datatype="http://www.w3.org/2001/XMLSchema#string">1990-08-20</has_birth_date>
+  <has_id_card rdf:datatype="http://www.w3.org/2001/XMLSchema#string">440111199008201122</has_id_card>
+</owl:NamedIndividual>
+
+<owl:NamedIndividual rdf:about="#patient_4">
+  <rdf:type rdf:resource="#Patient"/>
+  <has_visit rdf:resource="#visit_4"/>
+  <has_name rdf:datatype="http://www.w3.org/2001/XMLSchema#string">赵六</has_name>
+  <has_gender rdf:datatype="http://www.w3.org/2001/XMLSchema#string">M</has_gender>
+  <has_birth_date rdf:datatype="http://www.w3.org/2001/XMLSchema#string">1965-03-15</has_birth_date>
+  <has_id_card rdf:datatype="http://www.w3.org/2001/XMLSchema#string">440103196503150333</has_id_card>
+</owl:NamedIndividual>
+
+<owl:NamedIndividual rdf:about="#patient_5">
+  <rdf:type rdf:resource="#Patient"/>
+  <has_visit rdf:resource="#visit_6"/>
+  <has_name rdf:datatype="http://www.w3.org/2001/XMLSchema#string">孙七</has_name>
+  <has_gender rdf:datatype="http://www.w3.org/2001/XMLSchema#string">F</has_gender>
+  <has_birth_date rdf:datatype="http://www.w3.org/2001/XMLSchema#string">2000-11-30</has_birth_date>
+  <has_id_card rdf:datatype="http://www.w3.org/2001/XMLSchema#string">440105200011304444</has_id_card>
+</owl:NamedIndividual>
+
+<owl:NamedIndividual rdf:about="#doctor_1">
+  <rdf:type rdf:resource="#Doctor"/>
+  <works_in rdf:resource="#dept_1"/>
+  <has_name rdf:datatype="http://www.w3.org/2001/XMLSchema#string">李四</has_name>
+  <has_title rdf:datatype="http://www.w3.org/2001/XMLSchema#string">主任医师</has_title>
+</owl:NamedIndividual>
+
+<owl:NamedIndividual rdf:about="#doctor_2">
+  <rdf:type rdf:resource="#Doctor"/>
+  <works_in rdf:resource="#dept_2"/>
+  <has_name rdf:datatype="http://www.w3.org/2001/XMLSchema#string">王医生</has_name>
+  <has_title rdf:datatype="http://www.w3.org/2001/XMLSchema#string">副主任医师</has_title>
+</owl:NamedIndividual>
+
+<owl:NamedIndividual rdf:about="#doctor_3">
+  <rdf:type rdf:resource="#Doctor"/>
+  <works_in rdf:resource="#dept_3"/>
+  <has_name rdf:datatype="http://www.w3.org/2001/XMLSchema#string">陈医生</has_name>
+  <has_title rdf:datatype="http://www.w3.org/2001/XMLSchema#string">主治医师</has_title>
+</owl:NamedIndividual>
+
+<owl:NamedIndividual rdf:about="#doctor_4">
+  <rdf:type rdf:resource="#Doctor"/>
+  <works_in rdf:resource="#dept_4"/>
+  <has_name rdf:datatype="http://www.w3.org/2001/XMLSchema#string">刘医生</has_name>
+  <has_title rdf:datatype="http://www.w3.org/2001/XMLSchema#string">主任医师</has_title>
+</owl:NamedIndividual>
+
+<owl:NamedIndividual rdf:about="#doctor_5">
+  <rdf:type rdf:resource="#Doctor"/>
+  <works_in rdf:resource="#dept_5"/>
+  <has_name rdf:datatype="http://www.w3.org/2001/XMLSchema#string">黄医生</has_name>
+  <has_title rdf:datatype="http://www.w3.org/2001/XMLSchema#string">副主任医师</has_title>
+</owl:NamedIndividual>
+
+<owl:NamedIndividual rdf:about="#I10">
+  <rdf:type rdf:resource="#Disease"/>
+  <has_symptom rdf:resource="#R51"/>
+  <has_symptom rdf:resource="#R42"/>
+  <has_symptom rdf:resource="#R09"/>
+  <has_name rdf:datatype="http://www.w3.org/2001/XMLSchema#string">高血压</has_name>
+  <has_disease_code rdf:datatype="http://www.w3.org/2001/XMLSchema#string">I10</has_disease_code>
+  <has_category rdf:datatype="http://www.w3.org/2001/XMLSchema#string">心血管</has_category>
+  <is_chronic rdf:datatype="http://www.w3.org/2001/XMLSchema#boolean">true</is_chronic>
+</owl:NamedIndividual>
+
+<owl:NamedIndividual rdf:about="#I20">
+  <rdf:type rdf:resource="#Disease"/>
+  <has_symptom rdf:resource="#R07"/>
+  <has_symptom rdf:resource="#R06"/>
+  <has_name rdf:datatype="http://www.w3.org/2001/XMLSchema#string">心绞痛</has_name>
+  <has_disease_code rdf:datatype="http://www.w3.org/2001/XMLSchema#string">I20</has_disease_code>
+  <has_category rdf:datatype="http://www.w3.org/2001/XMLSchema#string">心血管</has_category>
+  <is_chronic rdf:datatype="http://www.w3.org/2001/XMLSchema#boolean">true</is_chronic>
+</owl:NamedIndividual>
+
+<owl:NamedIndividual rdf:about="#I21">
+  <rdf:type rdf:resource="#Disease"/>
+  <has_symptom rdf:resource="#R07"/>
+  <has_symptom rdf:resource="#R06"/>
+  <has_symptom rdf:resource="#R09"/>
+  <has_name rdf:datatype="http://www.w3.org/2001/XMLSchema#string">急性心肌梗死</has_name>
+  <has_disease_code rdf:datatype="http://www.w3.org/2001/XMLSchema#string">I21</has_disease_code>
+  <has_category rdf:datatype="http://www.w3.org/2001/XMLSchema#string">心血管</has_category>
+  <is_chronic rdf:datatype="http://www.w3.org/2001/XMLSchema#boolean">false</is_chronic>
+</owl:NamedIndividual>
+
+<owl:NamedIndividual rdf:about="#I50">
+  <rdf:type rdf:resource="#Disease"/>
+  <has_symptom rdf:resource="#R06"/>
+  <has_symptom rdf:resource="#R54"/>
+  <has_symptom rdf:resource="#R53"/>
+  <has_name rdf:datatype="http://www.w3.org/2001/XMLSchema#string">心力衰竭</has_name>
+  <has_disease_code rdf:datatype="http://www.w3.org/2001/XMLSchema#string">I50</has_disease_code>
+  <has_category rdf:datatype="http://www.w3.org/2001/XMLSchema#string">心血管</has_category>
+  <is_chronic rdf:datatype="http://www.w3.org/2001/XMLSchema#boolean">true</is_chronic>
+</owl:NamedIndividual>
+
+<owl:NamedIndividual rdf:about="#I48">
+  <rdf:type rdf:resource="#Disease"/>
+  <has_symptom rdf:resource="#R09"/>
+  <has_symptom rdf:resource="#R42"/>
+  <has_symptom rdf:resource="#R06"/>
+  <has_name rdf:datatype="http://www.w3.org/2001/XMLSchema#string">心房颤动</has_name>
+  <has_disease_code rdf:datatype="http://www.w3.org/2001/XMLSchema#string">I48</has_disease_code>
+  <has_category rdf:datatype="http://www.w3.org/2001/XMLSchema#string">心血管</has_category>
+  <is_chronic rdf:datatype="http://www.w3.org/2001/XMLSchema#boolean">true</is_chronic>
+</owl:NamedIndividual>
+
+<owl:NamedIndividual rdf:about="#E11">
+  <rdf:type rdf:resource="#Disease"/>
+  <has_symptom rdf:resource="#R53"/>
+  <has_symptom rdf:resource="#R63"/>
+  <has_name rdf:datatype="http://www.w3.org/2001/XMLSchema#string">2型糖尿病</has_name>
+  <has_disease_code rdf:datatype="http://www.w3.org/2001/XMLSchema#string">E11</has_disease_code>
+  <has_category rdf:datatype="http://www.w3.org/2001/XMLSchema#string">内分泌</has_category>
+  <is_chronic rdf:datatype="http://www.w3.org/2001/XMLSchema#boolean">true</is_chronic>
+</owl:NamedIndividual>
+
+<owl:NamedIndividual rdf:about="#E10">
+  <rdf:type rdf:resource="#Disease"/>
+  <has_symptom rdf:resource="#R53"/>
+  <has_symptom rdf:resource="#R63"/>
+  <has_name rdf:datatype="http://www.w3.org/2001/XMLSchema#string">1型糖尿病</has_name>
+  <has_disease_code rdf:datatype="http://www.w3.org/2001/XMLSchema#string">E10</has_disease_code>
+  <has_category rdf:datatype="http://www.w3.org/2001/XMLSchema#string">内分泌</has_category>
+  <is_chronic rdf:datatype="http://www.w3.org/2001/XMLSchema#boolean">true</is_chronic>
+</owl:NamedIndividual>
+
+<owl:NamedIndividual rdf:about="#E03">
+  <rdf:type rdf:resource="#Disease"/>
+  <has_symptom rdf:resource="#R53"/>
+  <has_symptom rdf:resource="#R54"/>
+  <has_name rdf:datatype="http://www.w3.org/2001/XMLSchema#string">甲状腺功能减退</has_name>
+  <has_disease_code rdf:datatype="http://www.w3.org/2001/XMLSchema#string">E03</has_disease_code>
+  <has_category rdf:datatype="http://www.w3.org/2001/XMLSchema#string">内分泌</has_category>
+  <is_chronic rdf:datatype="http://www.w3.org/2001/XMLSchema#boolean">true</is_chronic>
+</owl:NamedIndividual>
+
+<owl:NamedIndividual rdf:about="#E05">
+  <rdf:type rdf:resource="#Disease"/>
+  <has_symptom rdf:resource="#R09"/>
+  <has_symptom rdf:resource="#R53"/>
+  <has_symptom rdf:resource="#R63"/>
+  <has_name rdf:datatype="http://www.w3.org/2001/XMLSchema#string">甲状腺功能亢进</has_name>
+  <has_disease_code rdf:datatype="http://www.w3.org/2001/XMLSchema#string">E05</has_disease_code>
+  <has_category rdf:datatype="http://www.w3.org/2001/XMLSchema#string">内分泌</has_category>
+  <is_chronic rdf:datatype="http://www.w3.org/2001/XMLSchema#boolean">true</is_chronic>
+</owl:NamedIndividual>
+
+<owl:NamedIndividual rdf:about="#J00">
+  <rdf:type rdf:resource="#Disease"/>
+  <has_symptom rdf:resource="#R05"/>
+  <has_symptom rdf:resource="#R51"/>
+  <has_symptom rdf:resource="#R50"/>
+  <has_name rdf:datatype="http://www.w3.org/2001/XMLSchema#string">急性鼻咽炎</has_name>
+  <has_disease_code rdf:datatype="http://www.w3.org/2001/XMLSchema#string">J00</has_disease_code>
+  <has_category rdf:datatype="http://www.w3.org/2001/XMLSchema#string">呼吸</has_category>
+  <is_chronic rdf:datatype="http://www.w3.org/2001/XMLSchema#boolean">false</is_chronic>
+</owl:NamedIndividual>
+
+<owl:NamedIndividual rdf:about="#J11">
+  <rdf:type rdf:resource="#Disease"/>
+  <has_symptom rdf:resource="#R50"/>
+  <has_symptom rdf:resource="#R05"/>
+  <has_symptom rdf:resource="#R51"/>
+  <has_symptom rdf:resource="#R53"/>
+  <has_name rdf:datatype="http://www.w3.org/2001/XMLSchema#string">流行性感冒</has_name>
+  <has_disease_code rdf:datatype="http://www.w3.org/2001/XMLSchema#string">J11</has_disease_code>
+  <has_category rdf:datatype="http://www.w3.org/2001/XMLSchema#string">呼吸</has_category>
+  <is_chronic rdf:datatype="http://www.w3.org/2001/XMLSchema#boolean">false</is_chronic>
+</owl:NamedIndividual>
+
+<owl:NamedIndividual rdf:about="#J20">
+  <rdf:type rdf:resource="#Disease"/>
+  <has_symptom rdf:resource="#R05"/>
+  <has_symptom rdf:resource="#R09_1"/>
+  <has_symptom rdf:resource="#R50"/>
+  <has_name rdf:datatype="http://www.w3.org/2001/XMLSchema#string">急性支气管炎</has_name>
+  <has_disease_code rdf:datatype="http://www.w3.org/2001/XMLSchema#string">J20</has_disease_code>
+  <has_category rdf:datatype="http://www.w3.org/2001/XMLSchema#string">呼吸</has_category>
+  <is_chronic rdf:datatype="http://www.w3.org/2001/XMLSchema#boolean">false</is_chronic>
+</owl:NamedIndividual>
+
+<owl:NamedIndividual rdf:about="#J44">
+  <rdf:type rdf:resource="#Disease"/>
+  <has_symptom rdf:resource="#R06"/>
+  <has_symptom rdf:resource="#R05"/>
+  <has_symptom rdf:resource="#R09_1"/>
+  <has_name rdf:datatype="http://www.w3.org/2001/XMLSchema#string">慢性阻塞性肺疾病</has_name>
+  <has_disease_code rdf:datatype="http://www.w3.org/2001/XMLSchema#string">J44</has_disease_code>
+  <has_category rdf:datatype="http://www.w3.org/2001/XMLSchema#string">呼吸</has_category>
+  <is_chronic rdf:datatype="http://www.w3.org/2001/XMLSchema#boolean">true</is_chronic>
+</owl:NamedIndividual>
+
+<owl:NamedIndividual rdf:about="#J45">
+  <rdf:type rdf:resource="#Disease"/>
+  <has_symptom rdf:resource="#R06"/>
+  <has_symptom rdf:resource="#R05"/>
+  <has_name rdf:datatype="http://www.w3.org/2001/XMLSchema#string">支气管哮喘</has_name>
+  <has_disease_code rdf:datatype="http://www.w3.org/2001/XMLSchema#string">J45</has_disease_code>
+  <has_category rdf:datatype="http://www.w3.org/2001/XMLSchema#string">呼吸</has_category>
+  <is_chronic rdf:datatype="http://www.w3.org/2001/XMLSchema#boolean">true</is_chronic>
+</owl:NamedIndividual>
+
+<owl:NamedIndividual rdf:about="#K29">
+  <rdf:type rdf:resource="#Disease"/>
+  <has_symptom rdf:resource="#R10"/>
+  <has_symptom rdf:resource="#R11"/>
+  <has_symptom rdf:resource="#R14"/>
+  <has_name rdf:datatype="http://www.w3.org/2001/XMLSchema#string">胃炎</has_name>
+  <has_disease_code rdf:datatype="http://www.w3.org/2001/XMLSchema#string">K29</has_disease_code>
+  <has_category rdf:datatype="http://www.w3.org/2001/XMLSchema#string">消化</has_category>
+  <is_chronic rdf:datatype="http://www.w3.org/2001/XMLSchema#boolean">false</is_chronic>
+</owl:NamedIndividual>
+
+<owl:NamedIndividual rdf:about="#K21">
+  <rdf:type rdf:resource="#Disease"/>
+  <has_symptom rdf:resource="#R07"/>
+  <has_symptom rdf:resource="#R05"/>
+  <has_name rdf:datatype="http://www.w3.org/2001/XMLSchema#string">胃食管反流病</has_name>
+  <has_disease_code rdf:datatype="http://www.w3.org/2001/XMLSchema#string">K21</has_disease_code>
+  <has_category rdf:datatype="http://www.w3.org/2001/XMLSchema#string">消化</has_category>
+  <is_chronic rdf:datatype="http://www.w3.org/2001/XMLSchema#boolean">true</is_chronic>
+</owl:NamedIndividual>
+
+<owl:NamedIndividual rdf:about="#G43">
+  <rdf:type rdf:resource="#Disease"/>
+  <has_symptom rdf:resource="#R51"/>
+  <has_symptom rdf:resource="#R11"/>
+  <has_name rdf:datatype="http://www.w3.org/2001/XMLSchema#string">偏头痛</has_name>
+  <has_disease_code rdf:datatype="http://www.w3.org/2001/XMLSchema#string">G43</has_disease_code>
+  <has_category rdf:datatype="http://www.w3.org/2001/XMLSchema#string">神经</has_category>
+  <is_chronic rdf:datatype="http://www.w3.org/2001/XMLSchema#boolean">true</is_chronic>
+</owl:NamedIndividual>
+
+<owl:NamedIndividual rdf:about="#G45">
+  <rdf:type rdf:resource="#Disease"/>
+  <has_symptom rdf:resource="#R42"/>
+  <has_symptom rdf:resource="#R41"/>
+  <has_name rdf:datatype="http://www.w3.org/2001/XMLSchema#string">短暂性脑缺血发作</has_name>
+  <has_disease_code rdf:datatype="http://www.w3.org/2001/XMLSchema#string">G45</has_disease_code>
+  <has_category rdf:datatype="http://www.w3.org/2001/XMLSchema#string">神经</has_category>
+  <is_chronic rdf:datatype="http://www.w3.org/2001/XMLSchema#boolean">false</is_chronic>
+</owl:NamedIndividual>
+
+<owl:NamedIndividual rdf:about="#N39">
+  <rdf:type rdf:resource="#Disease"/>
+  <has_symptom rdf:resource="#R30"/>
+  <has_symptom rdf:resource="#R31"/>
+  <has_symptom rdf:resource="#R50"/>
+  <has_name rdf:datatype="http://www.w3.org/2001/XMLSchema#string">尿路感染</has_name>
+  <has_disease_code rdf:datatype="http://www.w3.org/2001/XMLSchema#string">N39</has_disease_code>
+  <has_category rdf:datatype="http://www.w3.org/2001/XMLSchema#string">泌尿</has_category>
+  <is_chronic rdf:datatype="http://www.w3.org/2001/XMLSchema#boolean">false</is_chronic>
+</owl:NamedIndividual>
+
+<owl:NamedIndividual rdf:about="#F32">
+  <rdf:type rdf:resource="#Disease"/>
+  <has_symptom rdf:resource="#R40"/>
+  <has_symptom rdf:resource="#R41"/>
+  <has_symptom rdf:resource="#R53"/>
+  <has_name rdf:datatype="http://www.w3.org/2001/XMLSchema#string">抑郁发作</has_name>
+  <has_disease_code rdf:datatype="http://www.w3.org/2001/XMLSchema#string">F32</has_disease_code>
+  <has_category rdf:datatype="http://www.w3.org/2001/XMLSchema#string">精神</has_category>
+  <is_chronic rdf:datatype="http://www.w3.org/2001/XMLSchema#boolean">true</is_chronic>
+</owl:NamedIndividual>
+
+<owl:NamedIndividual rdf:about="#R42">
+  <rdf:type rdf:resource="#Symptom"/>
+  <has_name rdf:datatype="http://www.w3.org/2001/XMLSchema#string">头晕</has_name>
+  <has_symptom_code rdf:datatype="http://www.w3.org/2001/XMLSchema#string">R42</has_symptom_code>
+  <has_body_part rdf:datatype="http://www.w3.org/2001/XMLSchema#string">头部</has_body_part>
+</owl:NamedIndividual>
+
+<owl:NamedIndividual rdf:about="#R51">
+  <rdf:type rdf:resource="#Symptom"/>
+  <has_name rdf:datatype="http://www.w3.org/2001/XMLSchema#string">头痛</has_name>
+  <has_symptom_code rdf:datatype="http://www.w3.org/2001/XMLSchema#string">R51</has_symptom_code>
+  <has_body_part rdf:datatype="http://www.w3.org/2001/XMLSchema#string">头部</has_body_part>
+</owl:NamedIndividual>
+
+<owl:NamedIndividual rdf:about="#R40">
+  <rdf:type rdf:resource="#Symptom"/>
+  <has_name rdf:datatype="http://www.w3.org/2001/XMLSchema#string">嗜睡</has_name>
+  <has_symptom_code rdf:datatype="http://www.w3.org/2001/XMLSchema#string">R40</has_symptom_code>
+  <has_body_part rdf:datatype="http://www.w3.org/2001/XMLSchema#string">头部</has_body_part>
+</owl:NamedIndividual>
+
+<owl:NamedIndividual rdf:about="#R41">
+  <rdf:type rdf:resource="#Symptom"/>
+  <has_name rdf:datatype="http://www.w3.org/2001/XMLSchema#string">记忆障碍</has_name>
+  <has_symptom_code rdf:datatype="http://www.w3.org/2001/XMLSchema#string">R41</has_symptom_code>
+  <has_body_part rdf:datatype="http://www.w3.org/2001/XMLSchema#string">头部</has_body_part>
+</owl:NamedIndividual>
+
+<owl:NamedIndividual rdf:about="#R44">
+  <rdf:type rdf:resource="#Symptom"/>
+  <has_name rdf:datatype="http://www.w3.org/2001/XMLSchema#string">幻觉</has_name>
+  <has_symptom_code rdf:datatype="http://www.w3.org/2001/XMLSchema#string">R44</has_symptom_code>
+  <has_body_part rdf:datatype="http://www.w3.org/2001/XMLSchema#string">头部</has_body_part>
+</owl:NamedIndividual>
+
+<owl:NamedIndividual rdf:about="#R07">
+  <rdf:type rdf:resource="#Symptom"/>
+  <has_name rdf:datatype="http://www.w3.org/2001/XMLSchema#string">胸痛</has_name>
+  <has_symptom_code rdf:datatype="http://www.w3.org/2001/XMLSchema#string">R07</has_symptom_code>
+  <has_body_part rdf:datatype="http://www.w3.org/2001/XMLSchema#string">胸部</has_body_part>
+</owl:NamedIndividual>
+
+<owl:NamedIndividual rdf:about="#R06">
+  <rdf:type rdf:resource="#Symptom"/>
+  <has_name rdf:datatype="http://www.w3.org/2001/XMLSchema#string">呼吸困难</has_name>
+  <has_symptom_code rdf:datatype="http://www.w3.org/2001/XMLSchema#string">R06</has_symptom_code>
+  <has_body_part rdf:datatype="http://www.w3.org/2001/XMLSchema#string">胸部</has_body_part>
+</owl:NamedIndividual>
+
+<owl:NamedIndividual rdf:about="#R09">
+  <rdf:type rdf:resource="#Symptom"/>
+  <has_name rdf:datatype="http://www.w3.org/2001/XMLSchema#string">心悸</has_name>
+  <has_symptom_code rdf:datatype="http://www.w3.org/2001/XMLSchema#string">R09</has_symptom_code>
+  <has_body_part rdf:datatype="http://www.w3.org/2001/XMLSchema#string">胸部</has_body_part>
+</owl:NamedIndividual>
+
+<owl:NamedIndividual rdf:about="#R50">
+  <rdf:type rdf:resource="#Symptom"/>
+  <has_name rdf:datatype="http://www.w3.org/2001/XMLSchema#string">发热</has_name>
+  <has_symptom_code rdf:datatype="http://www.w3.org/2001/XMLSchema#string">R50</has_symptom_code>
+  <has_body_part rdf:datatype="http://www.w3.org/2001/XMLSchema#string">全身</has_body_part>
+</owl:NamedIndividual>
+
+<owl:NamedIndividual rdf:about="#R53">
+  <rdf:type rdf:resource="#Symptom"/>
+  <has_name rdf:datatype="http://www.w3.org/2001/XMLSchema#string">疲乏无力</has_name>
+  <has_symptom_code rdf:datatype="http://www.w3.org/2001/XMLSchema#string">R53</has_symptom_code>
+  <has_body_part rdf:datatype="http://www.w3.org/2001/XMLSchema#string">全身</has_body_part>
+</owl:NamedIndividual>
+
+<owl:NamedIndividual rdf:about="#R63">
+  <rdf:type rdf:resource="#Symptom"/>
+  <has_name rdf:datatype="http://www.w3.org/2001/XMLSchema#string">体重减轻</has_name>
+  <has_symptom_code rdf:datatype="http://www.w3.org/2001/XMLSchema#string">R63</has_symptom_code>
+  <has_body_part rdf:datatype="http://www.w3.org/2001/XMLSchema#string">全身</has_body_part>
+</owl:NamedIndividual>
+
+<owl:NamedIndividual rdf:about="#R54">
+  <rdf:type rdf:resource="#Symptom"/>
+  <has_name rdf:datatype="http://www.w3.org/2001/XMLSchema#string">水肿</has_name>
+  <has_symptom_code rdf:datatype="http://www.w3.org/2001/XMLSchema#string">R54</has_symptom_code>
+  <has_body_part rdf:datatype="http://www.w3.org/2001/XMLSchema#string">全身</has_body_part>
+</owl:NamedIndividual>
+
+<owl:NamedIndividual rdf:about="#R11">
+  <rdf:type rdf:resource="#Symptom"/>
+  <has_name rdf:datatype="http://www.w3.org/2001/XMLSchema#string">恶心呕吐</has_name>
+  <has_symptom_code rdf:datatype="http://www.w3.org/2001/XMLSchema#string">R11</has_symptom_code>
+  <has_body_part rdf:datatype="http://www.w3.org/2001/XMLSchema#string">腹部</has_body_part>
+</owl:NamedIndividual>
+
+<owl:NamedIndividual rdf:about="#R10">
+  <rdf:type rdf:resource="#Symptom"/>
+  <has_name rdf:datatype="http://www.w3.org/2001/XMLSchema#string">腹痛</has_name>
+  <has_symptom_code rdf:datatype="http://www.w3.org/2001/XMLSchema#string">R10</has_symptom_code>
+  <has_body_part rdf:datatype="http://www.w3.org/2001/XMLSchema#string">腹部</has_body_part>
+</owl:NamedIndividual>
+
+<owl:NamedIndividual rdf:about="#R14">
+  <rdf:type rdf:resource="#Symptom"/>
+  <has_name rdf:datatype="http://www.w3.org/2001/XMLSchema#string">腹胀</has_name>
+  <has_symptom_code rdf:datatype="http://www.w3.org/2001/XMLSchema#string">R14</has_symptom_code>
+  <has_body_part rdf:datatype="http://www.w3.org/2001/XMLSchema#string">腹部</has_body_part>
+</owl:NamedIndividual>
+
+<owl:NamedIndividual rdf:about="#R05">
+  <rdf:type rdf:resource="#Symptom"/>
+  <has_name rdf:datatype="http://www.w3.org/2001/XMLSchema#string">咳嗽</has_name>
+  <has_symptom_code rdf:datatype="http://www.w3.org/2001/XMLSchema#string">R05</has_symptom_code>
+  <has_body_part rdf:datatype="http://www.w3.org/2001/XMLSchema#string">胸部</has_body_part>
+</owl:NamedIndividual>
+
+<owl:NamedIndividual rdf:about="#R09_1">
+  <rdf:type rdf:resource="#Symptom"/>
+  <has_name rdf:datatype="http://www.w3.org/2001/XMLSchema#string">咳痰</has_name>
+  <has_symptom_code rdf:datatype="http://www.w3.org/2001/XMLSchema#string">R09.1</has_symptom_code>
+  <has_body_part rdf:datatype="http://www.w3.org/2001/XMLSchema#string">胸部</has_body_part>
+</owl:NamedIndividual>
+
+<owl:NamedIndividual rdf:about="#R30">
+  <rdf:type rdf:resource="#Symptom"/>
+  <has_name rdf:datatype="http://www.w3.org/2001/XMLSchema#string">排尿疼痛</has_name>
+  <has_symptom_code rdf:datatype="http://www.w3.org/2001/XMLSchema#string">R30</has_symptom_code>
+  <has_body_part rdf:datatype="http://www.w3.org/2001/XMLSchema#string">盆腔</has_body_part>
+</owl:NamedIndividual>
+
+<owl:NamedIndividual rdf:about="#R31">
+  <rdf:type rdf:resource="#Symptom"/>
+  <has_name rdf:datatype="http://www.w3.org/2001/XMLSchema#string">血尿</has_name>
+  <has_symptom_code rdf:datatype="http://www.w3.org/2001/XMLSchema#string">R31</has_symptom_code>
+  <has_body_part rdf:datatype="http://www.w3.org/2001/XMLSchema#string">盆腔</has_body_part>
+</owl:NamedIndividual>
+
+<owl:NamedIndividual rdf:about="#C02">
+  <rdf:type rdf:resource="#Drug"/>
+  <has_name rdf:datatype="http://www.w3.org/2001/XMLSchema#string">可乐定片</has_name>
+  <has_drug_code rdf:datatype="http://www.w3.org/2001/XMLSchema#string">C02</has_drug_code>
+  <has_specification rdf:datatype="http://www.w3.org/2001/XMLSchema#string">0.1mg</has_specification>
+</owl:NamedIndividual>
+
+<owl:NamedIndividual rdf:about="#C03">
+  <rdf:type rdf:resource="#Drug"/>
+  <has_name rdf:datatype="http://www.w3.org/2001/XMLSchema#string">氢氯噻嗪片</has_name>
+  <has_drug_code rdf:datatype="http://www.w3.org/2001/XMLSchema#string">C03</has_drug_code>
+  <has_specification rdf:datatype="http://www.w3.org/2001/XMLSchema#string">25mg</has_specification>
+</owl:NamedIndividual>
+
+<owl:NamedIndividual rdf:about="#C07">
+  <rdf:type rdf:resource="#Drug"/>
+  <has_name rdf:datatype="http://www.w3.org/2001/XMLSchema#string">美托洛尔片</has_name>
+  <has_drug_code rdf:datatype="http://www.w3.org/2001/XMLSchema#string">C07</has_drug_code>
+  <has_specification rdf:datatype="http://www.w3.org/2001/XMLSchema#string">50mg</has_specification>
+</owl:NamedIndividual>
+
+<owl:NamedIndividual rdf:about="#C08">
+  <rdf:type rdf:resource="#Drug"/>
+  <has_name rdf:datatype="http://www.w3.org/2001/XMLSchema#string">氨氯地平片</has_name>
+  <has_drug_code rdf:datatype="http://www.w3.org/2001/XMLSchema#string">C08</has_drug_code>
+  <has_specification rdf:datatype="http://www.w3.org/2001/XMLSchema#string">5mg</has_specification>
+</owl:NamedIndividual>
+
+<owl:NamedIndividual rdf:about="#C09">
+  <rdf:type rdf:resource="#Drug"/>
+  <has_name rdf:datatype="http://www.w3.org/2001/XMLSchema#string">依那普利片</has_name>
+  <has_drug_code rdf:datatype="http://www.w3.org/2001/XMLSchema#string">C09</has_drug_code>
+  <has_specification rdf:datatype="http://www.w3.org/2001/XMLSchema#string">10mg</has_specification>
+</owl:NamedIndividual>
+
+<owl:NamedIndividual rdf:about="#A10A">
+  <rdf:type rdf:resource="#Drug"/>
+  <has_name rdf:datatype="http://www.w3.org/2001/XMLSchema#string">普通胰岛素注射液</has_name>
+  <has_drug_code rdf:datatype="http://www.w3.org/2001/XMLSchema#string">A10A</has_drug_code>
+  <has_specification rdf:datatype="http://www.w3.org/2001/XMLSchema#string">400U</has_specification>
+</owl:NamedIndividual>
+
+<owl:NamedIndividual rdf:about="#A10B">
+  <rdf:type rdf:resource="#Drug"/>
+  <has_name rdf:datatype="http://www.w3.org/2001/XMLSchema#string">二甲双胍片</has_name>
+  <has_drug_code rdf:datatype="http://www.w3.org/2001/XMLSchema#string">A10B</has_drug_code>
+  <has_specification rdf:datatype="http://www.w3.org/2001/XMLSchema#string">500mg</has_specification>
+</owl:NamedIndividual>
+
+<owl:NamedIndividual rdf:about="#H03A">
+  <rdf:type rdf:resource="#Drug"/>
+  <has_name rdf:datatype="http://www.w3.org/2001/XMLSchema#string">左甲状腺素钠片</has_name>
+  <has_drug_code rdf:datatype="http://www.w3.org/2001/XMLSchema#string">H03A</has_drug_code>
+  <has_specification rdf:datatype="http://www.w3.org/2001/XMLSchema#string">50μg</has_specification>
+</owl:NamedIndividual>
+
+<owl:NamedIndividual rdf:about="#J01A">
+  <rdf:type rdf:resource="#Drug"/>
+  <has_name rdf:datatype="http://www.w3.org/2001/XMLSchema#string">阿莫西林胶囊</has_name>
+  <has_drug_code rdf:datatype="http://www.w3.org/2001/XMLSchema#string">J01A</has_drug_code>
+  <has_specification rdf:datatype="http://www.w3.org/2001/XMLSchema#string">500mg</has_specification>
+</owl:NamedIndividual>
+
+<owl:NamedIndividual rdf:about="#J01F">
+  <rdf:type rdf:resource="#Drug"/>
+  <has_name rdf:datatype="http://www.w3.org/2001/XMLSchema#string">阿奇霉素片</has_name>
+  <has_drug_code rdf:datatype="http://www.w3.org/2001/XMLSchema#string">J01F</has_drug_code>
+  <has_specification rdf:datatype="http://www.w3.org/2001/XMLSchema#string">250mg</has_specification>
+</owl:NamedIndividual>
+
+<owl:NamedIndividual rdf:about="#R03A">
+  <rdf:type rdf:resource="#Drug"/>
+  <has_name rdf:datatype="http://www.w3.org/2001/XMLSchema#string">沙丁胺醇气雾剂</has_name>
+  <has_drug_code rdf:datatype="http://www.w3.org/2001/XMLSchema#string">R03A</has_drug_code>
+  <has_specification rdf:datatype="http://www.w3.org/2001/XMLSchema#string">100μg</has_specification>
+</owl:NamedIndividual>
+
+<owl:NamedIndividual rdf:about="#R03B">
+  <rdf:type rdf:resource="#Drug"/>
+  <has_name rdf:datatype="http://www.w3.org/2001/XMLSchema#string">布地奈德吸入剂</has_name>
+  <has_drug_code rdf:datatype="http://www.w3.org/2001/XMLSchema#string">R03B</has_drug_code>
+  <has_specification rdf:datatype="http://www.w3.org/2001/XMLSchema#string">200μg</has_specification>
+</owl:NamedIndividual>
+
+<owl:NamedIndividual rdf:about="#A02B">
+  <rdf:type rdf:resource="#Drug"/>
+  <has_name rdf:datatype="http://www.w3.org/2001/XMLSchema#string">奥美拉唑肠溶胶囊</has_name>
+  <has_drug_code rdf:datatype="http://www.w3.org/2001/XMLSchema#string">A02B</has_drug_code>
+  <has_specification rdf:datatype="http://www.w3.org/2001/XMLSchema#string">20mg</has_specification>
+</owl:NamedIndividual>
+
+<owl:NamedIndividual rdf:about="#A02A">
+  <rdf:type rdf:resource="#Drug"/>
+  <has_name rdf:datatype="http://www.w3.org/2001/XMLSchema#string">铝碳酸镁咀嚼片</has_name>
+  <has_drug_code rdf:datatype="http://www.w3.org/2001/XMLSchema#string">A02A</has_drug_code>
+  <has_specification rdf:datatype="http://www.w3.org/2001/XMLSchema#string">500mg</has_specification>
+</owl:NamedIndividual>
+
+<owl:NamedIndividual rdf:about="#N02B">
+  <rdf:type rdf:resource="#Drug"/>
+  <has_name rdf:datatype="http://www.w3.org/2001/XMLSchema#string">对乙酰氨基酚片</has_name>
+  <has_drug_code rdf:datatype="http://www.w3.org/2001/XMLSchema#string">N02B</has_drug_code>
+  <has_specification rdf:datatype="http://www.w3.org/2001/XMLSchema#string">500mg</has_specification>
+</owl:NamedIndividual>
+
+<owl:NamedIndividual rdf:about="#visit_1">
+  <rdf:type rdf:resource="#Visit"/>
+  <treated_by rdf:resource="#doctor_1"/>
+  <treated_in rdf:resource="#dept_1"/>
+  <diagnosed_with rdf:resource="#I10"/>
+  <recorded_symptom rdf:resource="#R42"/>
+  <prescribed_drug rdf:resource="#C08"/>
+  <prescribed_drug rdf:resource="#C07"/>
+  <has_visit_type rdf:datatype="http://www.w3.org/2001/XMLSchema#string">门诊</has_visit_type>
+  <has_visit_time rdf:datatype="http://www.w3.org/2001/XMLSchema#string">2026-08-22 10:00:00</has_visit_time>
+  <has_chief_complaint rdf:datatype="http://www.w3.org/2001/XMLSchema#string">头晕半月,加重3天</has_chief_complaint>
+</owl:NamedIndividual>
+
+<owl:NamedIndividual rdf:about="#visit_2">
+  <rdf:type rdf:resource="#Visit"/>
+  <treated_by rdf:resource="#doctor_2"/>
+  <treated_in rdf:resource="#dept_2"/>
+  <diagnosed_with rdf:resource="#E11"/>
+  <recorded_symptom rdf:resource="#R63"/>
+  <recorded_symptom rdf:resource="#R53"/>
+  <prescribed_drug rdf:resource="#A10B"/>
+  <has_visit_type rdf:datatype="http://www.w3.org/2001/XMLSchema#string">门诊</has_visit_type>
+  <has_visit_time rdf:datatype="http://www.w3.org/2001/XMLSchema#string">2026-08-22 11:00:00</has_visit_time>
+  <has_chief_complaint rdf:datatype="http://www.w3.org/2001/XMLSchema#string">口渴多尿2月,体重减轻</has_chief_complaint>
+</owl:NamedIndividual>
+
+<owl:NamedIndividual rdf:about="#visit_3">
+  <rdf:type rdf:resource="#Visit"/>
+  <treated_by rdf:resource="#doctor_3"/>
+  <treated_in rdf:resource="#dept_3"/>
+  <diagnosed_with rdf:resource="#J11"/>
+  <recorded_symptom rdf:resource="#R05"/>
+  <recorded_symptom rdf:resource="#R50"/>
+  <prescribed_drug rdf:resource="#J01F"/>
+  <prescribed_drug rdf:resource="#N02B"/>
+  <has_visit_type rdf:datatype="http://www.w3.org/2001/XMLSchema#string">门诊</has_visit_type>
+  <has_visit_time rdf:datatype="http://www.w3.org/2001/XMLSchema#string">2026-08-22 14:00:00</has_visit_time>
+  <has_chief_complaint rdf:datatype="http://www.w3.org/2001/XMLSchema#string">咳嗽伴发热5天</has_chief_complaint>
+</owl:NamedIndividual>
+
+<owl:NamedIndividual rdf:about="#visit_4">
+  <rdf:type rdf:resource="#Visit"/>
+  <treated_by rdf:resource="#doctor_4"/>
+  <treated_in rdf:resource="#dept_4"/>
+  <diagnosed_with rdf:resource="#G43"/>
+  <recorded_symptom rdf:resource="#R51"/>
+  <prescribed_drug rdf:resource="#N02B"/>
+  <has_visit_type rdf:datatype="http://www.w3.org/2001/XMLSchema#string">门诊</has_visit_type>
+  <has_visit_time rdf:datatype="http://www.w3.org/2001/XMLSchema#string">2026-08-22 15:00:00</has_visit_time>
+  <has_chief_complaint rdf:datatype="http://www.w3.org/2001/XMLSchema#string">反复头痛1周</has_chief_complaint>
+</owl:NamedIndividual>
+
+<owl:NamedIndividual rdf:about="#visit_5">
+  <rdf:type rdf:resource="#Visit"/>
+  <treated_by rdf:resource="#doctor_1"/>
+  <treated_in rdf:resource="#dept_1"/>
+  <diagnosed_with rdf:resource="#I10"/>
+  <prescribed_drug rdf:resource="#C08"/>
+  <has_visit_type rdf:datatype="http://www.w3.org/2001/XMLSchema#string">复诊</has_visit_type>
+  <has_visit_time rdf:datatype="http://www.w3.org/2001/XMLSchema#string">2026-08-29 10:00:00</has_visit_time>
+  <has_chief_complaint rdf:datatype="http://www.w3.org/2001/XMLSchema#string">复诊高血压</has_chief_complaint>
+</owl:NamedIndividual>
+
+<owl:NamedIndividual rdf:about="#visit_6">
+  <rdf:type rdf:resource="#Visit"/>
+  <treated_by rdf:resource="#doctor_5"/>
+  <treated_in rdf:resource="#dept_5"/>
+  <diagnosed_with rdf:resource="#K29"/>
+  <recorded_symptom rdf:resource="#R10"/>
+  <recorded_symptom rdf:resource="#R11"/>
+  <prescribed_drug rdf:resource="#A02B"/>
+  <prescribed_drug rdf:resource="#A02A"/>
+  <has_visit_type rdf:datatype="http://www.w3.org/2001/XMLSchema#string">门诊</has_visit_type>
+  <has_visit_time rdf:datatype="http://www.w3.org/2001/XMLSchema#string">2026-08-22 16:00:00</has_visit_time>
+  <has_chief_complaint rdf:datatype="http://www.w3.org/2001/XMLSchema#string">上腹痛2天</has_chief_complaint>
+</owl:NamedIndividual>
+
+<owl:NamedIndividual rdf:about="#visit_7">
+  <rdf:type rdf:resource="#Visit"/>
+  <treated_by rdf:resource="#doctor_1"/>
+  <treated_in rdf:resource="#dept_1"/>
+  <diagnosed_with rdf:resource="#I50"/>
+  <diagnosed_with rdf:resource="#E11"/>
+  <recorded_symptom rdf:resource="#R06"/>
+  <recorded_symptom rdf:resource="#R54"/>
+  <prescribed_drug rdf:resource="#C03"/>
+  <prescribed_drug rdf:resource="#C09"/>
+  <has_visit_type rdf:datatype="http://www.w3.org/2001/XMLSchema#string">门诊</has_visit_type>
+  <has_visit_time rdf:datatype="http://www.w3.org/2001/XMLSchema#string">2026-09-05 09:00:00</has_visit_time>
+  <has_chief_complaint rdf:datatype="http://www.w3.org/2001/XMLSchema#string">活动后气促1月</has_chief_complaint>
+</owl:NamedIndividual>
+
+<owl:NamedIndividual rdf:about="#visit_8">
+  <rdf:type rdf:resource="#Visit"/>
+  <treated_by rdf:resource="#doctor_3"/>
+  <treated_in rdf:resource="#dept_3"/>
+  <diagnosed_with rdf:resource="#J45"/>
+  <recorded_symptom rdf:resource="#R05"/>
+  <recorded_symptom rdf:resource="#R09_1"/>
+  <prescribed_drug rdf:resource="#R03A"/>
+  <prescribed_drug rdf:resource="#R03B"/>
+  <has_visit_type rdf:datatype="http://www.w3.org/2001/XMLSchema#string">复诊</has_visit_type>
+  <has_visit_time rdf:datatype="http://www.w3.org/2001/XMLSchema#string">2026-09-10 14:00:00</has_visit_time>
+  <has_chief_complaint rdf:datatype="http://www.w3.org/2001/XMLSchema#string">复诊哮喘</has_chief_complaint>
+</owl:NamedIndividual>
+
+<owl:AllDisjointClasses>
+  <owl:members rdf:parseType="Collection">
+    <rdf:Description rdf:about="#Person"/>
+    <rdf:Description rdf:about="#Disease"/>
+    <rdf:Description rdf:about="#Symptom"/>
+    <rdf:Description rdf:about="#Department"/>
+    <rdf:Description rdf:about="#Visit"/>
+    <rdf:Description rdf:about="#Drug"/>
+  </owl:members>
+</owl:AllDisjointClasses>
+
+
+</rdf:RDF>

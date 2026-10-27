@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>医院本体教学系统 - AI 接诊助手</title>
+
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      background: #f5f7fa;
+      color: #303133;
+      padding: 16px;
+      font-size: 14px;
+      line-height: 1.6;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ===== 顶部导航 ===== */
+    .header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 16px 24px;
+      border-radius: 8px;
+      margin-bottom: 12px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0;
+    }
+    .header-left h1 { font-size: 18px; margin-bottom: 4px; }
+    .header-left .subtitle { font-size: 12px; opacity: 0.85; }
+    .header-right { display: flex; gap: 8px; }
+    .header-btn {
+      background: rgba(255,255,255,0.2);
+      color: white;
+      border: 1px solid rgba(255,255,255,0.4);
+      padding: 6px 14px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 13px;
+      text-decoration: none;
+      transition: background 0.2s;
+    }
+    .header-btn:hover { background: rgba(255,255,255,0.35); }
+    .status-dot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      margin-right: 6px;
+    }
+    .status-dot.ok { background: #67c23a; }
+    .status-dot.err { background: #f56c6c; }
+    .status-dot.unknown { background: #909399; }
+
+    /* ===== 主体:左右分栏 ===== */
+    .main {
+      display: flex;
+      gap: 12px;
+      flex: 1;
+      min-height: 0;
+    }
+    .panel {
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+    .chat-panel { flex: 3; }
+    .json-panel { flex: 2; }
+    .panel-header {
+      padding: 10px 16px;
+      border-bottom: 1px solid #ebeef5;
+      background: #f5f7fa;
+      border-radius: 8px 8px 0 0;
+      font-size: 13px;
+      font-weight: 600;
+      color: #606266;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0;
+    }
+
+    /* ===== 聊天区 ===== */
+    .messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .msg {
+      max-width: 80%;
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 14px;
+      word-wrap: break-word;
+      white-space: pre-wrap;
+      line-height: 1.5;
+    }
+    .msg.user {
+      align-self: flex-end;
+      background: #409eff;
+      color: white;
+      border-bottom-right-radius: 2px;
+    }
+    .msg.assistant {
+      align-self: flex-start;
+      background: #f5f7fa;
+      color: #303133;
+      border: 1px solid #ebeef5;
+      border-bottom-left-radius: 2px;
+    }
+    .msg.error {
+      align-self: center;
+      background: #fff1f0;
+      color: #f56c6c;
+      border: 1px solid #ffa39e;
+      max-width: 90%;
+    }
+    .msg .role-tag {
+      font-size: 11px;
+      color: #909399;
+      margin-bottom: 4px;
+    }
+    .msg.user .role-tag { color: rgba(255,255,255,0.7); }
+    .msg-loading {
+      align-self: flex-start;
+      padding: 10px 14px;
+      background: #f5f7fa;
+      border: 1px solid #ebeef5;
+      border-radius: 8px;
+      color: #909399;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .spinner {
+      width: 14px;
+      height: 14px;
+      border: 2px solid #dcdfe6;
+      border-top-color: #409eff;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ===== 示例提示 ===== */
+    .examples {
+      padding: 8px 16px;
+      border-top: 1px solid #ebeef5;
+      background: #fafafa;
+      flex-shrink: 0;
+    }
+    .examples-title {
+      font-size: 11px;
+      color: #909399;
+      margin-bottom: 6px;
+    }
+    .example-chip {
+      display: inline-block;
+      background: white;
+      border: 1px solid #dcdfe6;
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-size: 12px;
+      color: #606266;
+      cursor: pointer;
+      margin-right: 6px;
+      margin-bottom: 4px;
+      transition: all 0.2s;
+    }
+    .example-chip:hover {
+      border-color: #409eff;
+      color: #409eff;
+      background: #ecf5ff;
+    }
+
+    /* ===== 输入区 ===== */
+    .input-area {
+      padding: 12px 16px;
+      border-top: 1px solid #ebeef5;
+      display: flex;
+      gap: 8px;
+      align-items: flex-end;
+      flex-shrink: 0;
+    }
+    .input-area textarea {
+      flex: 1;
+      padding: 8px 12px;
+      border: 1px solid #dcdfe6;
+      border-radius: 4px;
+      font-size: 14px;
+      font-family: inherit;
+      resize: none;
+      min-height: 44px;
+      max-height: 120px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .input-area textarea:focus { border-color: #409eff; }
+    .input-area textarea:disabled { background: #f5f7fa; cursor: not-allowed; }
+    .send-btn {
+      background: #409eff;
+      color: white;
+      border: none;
+      padding: 0 20px;
+      height: 44px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      transition: background 0.2s;
+    }
+    .send-btn:hover:not(:disabled) { background: #66b1ff; }
+    .send-btn:disabled { background: #c0c4cc; cursor: not-allowed; }
+    .send-hint {
+      font-size: 11px;
+      color: #c0c4cc;
+      margin-top: 4px;
+    }
+
+    /* ===== JSON 展示区 ===== */
+    .json-content {
+      flex: 1;
+      overflow: auto;
+      padding: 12px 16px;
+      font-family: "SF Mono", "Monaco", "Menlo", "Consolas", monospace;
+      font-size: 12px;
+      line-height: 1.6;
+    }
+    .json-empty {
+      color: #c0c4cc;
+      text-align: center;
+      padding: 60px 20px;
+      font-size: 13px;
+    }
+    .json-empty .hint {
+      font-size: 11px;
+      color: #c0c4cc;
+      margin-top: 8px;
+      line-height: 1.6;
+    }
+    pre.json-pre {
+      white-space: pre-wrap;
+      word-wrap: break-word;
+    }
+    /* JSON 语法高亮(简化版) */
+    .json-key { color: #1677ff; }
+    .json-string { color: #389e0d; }
+    .json-number { color: #d48806; }
+    .json-boolean { color: #c41d7f; }
+    .json-null { color: #909399; }
+
+    .copy-btn {
+      background: white;
+      border: 1px solid #dcdfe6;
+      padding: 4px 10px;
+      border-radius: 3px;
+      cursor: pointer;
+      font-size: 12px;
+      color: #606266;
+      transition: all 0.2s;
+    }
+    .copy-btn:hover { border-color: #409eff; color: #409eff; }
+    .copy-btn.copied { background: #f6ffed; color: #389e0d; border-color: #b7eb8f; }
+
+    /* ===== 诊断推理面板 ===== */
+    .infer-section {
+      border-top: 1px solid #ebeef5;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+    .infer-header {
+      padding: 8px 16px;
+      background: #f5f7fa;
+      font-size: 13px;
+      font-weight: 600;
+      color: #606266;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0;
+    }
+    .infer-status {
+      font-size: 11px;
+      color: #909399;
+      font-weight: normal;
+    }
+    .infer-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px 16px;
+      font-size: 13px;
+      min-height: 120px;
+      max-height: 260px;
+    }
+    .infer-empty {
+      color: #c0c4cc;
+      text-align: center;
+      padding: 20px;
+      font-size: 12px;
+    }
+    .infer-item {
+      background: #fafafa;
+      border: 1px solid #ebeef5;
+      border-radius: 4px;
+      padding: 10px 12px;
+      margin-bottom: 8px;
+      border-left: 3px solid #409eff;
+    }
+    .infer-item.rank-1 { border-left-color: #f56c6c; background: #fff1f0; }
+    .infer-item.rank-2 { border-left-color: #e6a23c; background: #fdf6ec; }
+    .infer-item.rank-3 { border-left-color: #67c23a; background: #f0f9eb; }
+    .infer-item .infer-name {
+      font-weight: 600;
+      color: #303133;
+      font-size: 14px;
+    }
+    .infer-item .infer-code {
+      color: #909399;
+      font-size: 11px;
+      margin-left: 6px;
+    }
+    .infer-item .infer-prob {
+      float: right;
+      font-size: 16px;
+      font-weight: 700;
+      color: #f56c6c;
+    }
+    .infer-item .infer-meta {
+      font-size: 12px;
+      color: #606266;
+      margin-top: 4px;
+    }
+    .infer-item .infer-bar {
+      height: 4px;
+      background: #ebeef5;
+      border-radius: 2px;
+      margin-top: 6px;
+      overflow: hidden;
+    }
+    .infer-item .infer-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #409eff, #66b1ff);
+      border-radius: 2px;
+      transition: width 0.5s;
+    }
+    .infer-item.rank-1 .infer-bar-fill { background: linear-gradient(90deg, #f56c6c, #f78989); }
+    .infer-item.rank-2 .infer-bar-fill { background: linear-gradient(90deg, #e6a23c, #f0c78a); }
+    .infer-item.rank-3 .infer-bar-fill { background: linear-gradient(90deg, #67c23a, #95d475); }
+    .infer-loading {
+      color: #909399;
+      font-size: 12px;
+      text-align: center;
+      padding: 16px;
+    }
+    .infer-quick {
+      display: flex;
+      gap: 6px;
+      padding: 8px 12px;
+      background: #fafafa;
+      border-bottom: 1px solid #ebeef5;
+    }
+    .infer-quick input {
+      flex: 1;
+      padding: 5px 8px;
+      border: 1px solid #dcdfe6;
+      border-radius: 3px;
+      font-size: 12px;
+      outline: none;
+    }
+    .infer-quick input:focus { border-color: #409eff; }
+    .infer-quick button {
+      padding: 5px 12px;
+      background: #409eff;
+      color: #fff;
+      border: none;
+      border-radius: 3px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .infer-quick button:hover { background: #66b1ff; }
+
+    /* ===== 配置缺失提示 ===== */
+    .config-warning {
+      background: #fffbe6;
+      border: 1px solid #ffe58f;
+      color: #d48806;
+      padding: 10px 16px;
+      border-radius: 4px;
+      margin: 12px;
+      font-size: 13px;
+    }
+    .config-warning code {
+      background: #fff;
+      padding: 1px 6px;
+      border-radius: 3px;
+      border: 1px solid #ffe58f;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="header-left">
+      <h1>AI 接诊助手 · 自然语言 → 结构化 JSON</h1>
+      <div class="subtitle">
+        <span id="status"><span class="status-dot unknown"></span>检查后端状态中…</span>
+        · 术语归一化前置环节 · 输出供 ABox 胶水代码消费
+      </div>
+    </div>
+    <div class="header-right">
+      <button class="header-btn" onclick="resetChat()">重置对话</button>
+      <a class="header-btn" href="index.html">← 数据表 CRUD</a>
+    </div>
+  </div>
+
+  <div class="main">
+    <!-- 左侧:对话 -->
+    <div class="panel chat-panel">
+      <div class="panel-header">
+        <span>对话</span>
+        <span style="font-weight: normal; color: #909399; font-size: 11px;">Cmd/Ctrl + Enter 发送</span>
+      </div>
+      <div class="messages" id="messages">
+        <div class="msg assistant">
+          <div class="role-tag">AI 接诊助手</div>
+          你好,我是 AI 接诊助手。请描述患者的生理情况(主诉、症状、持续时间、生命体征等),我会把你的描述转成结构化 JSON,供后续术语归一化和 ABox 生成使用。
+        </div>
+      </div>
+
+      <div class="examples">
+        <div class="examples-title">示例输入(点击填入):</div>
+        <span class="example-chip" onclick="fillExample(0)">张三 男 45 头疼3天 胸口闷</span>
+        <span class="example-chip" onclick="fillExample(1)">李娜 女 55 发烧38.5 咳黄痰 乏力</span>
+        <span class="example-chip" onclick="fillExample(2)">王五 男 68 头晕 走路不稳 恶心</span>
+      </div>
+
+      <div class="input-area">
+        <textarea id="msg-input" placeholder="输入患者情况,如:张三,男,45岁,头疼得厉害3天了,有时候觉得胸口闷…" rows="2"></textarea>
+        <button class="send-btn" id="send-btn" onclick="sendMessage()">发送</button>
+      </div>
+    </div>
+
+    <!-- 右侧:JSON 展示 + 诊断推理 -->
+    <div class="panel json-panel">
+      <div class="panel-header">
+        <span>结构化 JSON 输出</span>
+        <button class="copy-btn" id="copy-btn" onclick="copyJson()" disabled>复制</button>
+      </div>
+      <div class="json-content" id="json-content">
+        <div class="json-empty">
+          等待第一次对话…
+          <div class="hint">
+            生成 JSON 后,这里会展示按 Patient Intake Schema 约束的结构化数据,<br>
+            包含:patient / chief_complaint / symptoms(含 raw_description + symptom_name) / vital_signs / suspected_diseases
+          </div>
+        </div>
+      </div>
+
+      <!-- 诊断推理结果 -->
+      <div class="infer-section">
+        <div class="infer-header">
+          <span>🔍 诊断推理(基于疾病-症状知识库)</span>
+          <span class="infer-status" id="infer-status"></span>
+        </div>
+        <!-- 快速推理:无 API Key 时也能直接测试 -->
+        <div class="infer-quick">
+          <input type="text" id="quick-symptoms" placeholder="快速推理:输入症状名,逗号分隔,如:发热,咳嗽,头痛" onkeydown="if(event.key==='Enter')quickInfer()" />
+          <button onclick="quickInfer()">推理</button>
+        </div>
+        <div class="infer-content" id="infer-content">
+          <div class="json-empty">对话产生症状后自动推理,或直接在上方输入症状测试</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = 'http://localhost:5000';
+    const EXAMPLES = [
+      '张三,男,45岁,头疼得厉害3天了,有时候觉得胸口闷,昨晚量血压 150/95,心率 80。',
+      '李娜,女性,55岁,3天前开始发烧38.5度,咳嗽有黄痰,全身没力气,今天是来复诊的。',
+      '王五,男,68岁,昨天起头晕,走路不稳,记不住事,可能还恶心,没量过体温。'
+    ];
+
+    let lastParsed = null;
+    let isSending = false;
+
+    // ===== 启动时检查后端状态 =====
+    async function checkHealth() {
+      const statusEl = document.getElementById('status');
+      try {
+        const res = await fetch(`${API_BASE}/api/health`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        const configured = data.deepseek_configured;
+        statusEl.innerHTML = `
+          <span class="status-dot ${configured ? 'ok' : 'err'}"></span>
+          后端正常 · DeepSeek ${configured ? '已配置' : '未配置 API Key'}
+        `;
+        if (!configured) {
+          showConfigWarning();
+        }
+      } catch (err) {
+        statusEl.innerHTML = `<span class="status-dot err"></span>后端未启动:${err.message}`;
+      }
+    }
+
+    function showConfigWarning() {
+      const messages = document.getElementById('messages');
+      const div = document.createElement('div');
+      div.className = 'config-warning';
+      div.innerHTML = `
+        ⚠️ DeepSeek API Key 未配置。请编辑 <code>backend/config.py</code> 填入
+        <code>DEEPSEEK_API_KEY = "sk-..."</code>,然后重启后端
+        (<code>python3 backend/app.py</code>)。
+      `;
+      messages.appendChild(div);
+      messages.scrollTop = messages.scrollHeight;
+    }
+
+    // ===== 发送消息 =====
+    async function sendMessage() {
+      if (isSending) return;
+      const input = document.getElementById('msg-input');
+      const message = input.value.trim();
+      if (!message) return;
+
+      // 渲染用户消息
+      appendMessage('user', message);
+      input.value = '';
+      input.style.height = 'auto';
+
+      // 显示加载中
+      const loadingEl = document.createElement('div');
+      loadingEl.className = 'msg-loading';
+      loadingEl.id = 'loading';
+      loadingEl.innerHTML = `<div class="spinner"></div><span>DeepSeek 思考中…</span>`;
+      document.getElementById('messages').appendChild(loadingEl);
+      scrollToBottom();
+
+      // 锁定输入
+      isSending = true;
+      const sendBtn = document.getElementById('send-btn');
+      input.disabled = true;
+      sendBtn.disabled = true;
+      sendBtn.textContent = '发送中…';
+
+      try {
+        const res = await fetch(`${API_BASE}/api/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message }),
+        });
+        const data = await res.json();
+
+        // 移除加载中
+        document.getElementById('loading')?.remove();
+
+        if (!res.ok) {
+          appendMessage('error', `❌ ${data.error || '请求失败'}\n${data.detail || data.hint || ''}`);
+          return;
+        }
+
+        // 渲染 AI 消息(简要摘要,完整 JSON 在右侧)
+        lastParsed = data.parsed;
+        const summary = buildSummary(data.parsed);
+        appendMessage('assistant', summary);
+
+        // 渲染右侧 JSON
+        renderJson(data.parsed, data.raw);
+        document.getElementById('copy-btn').disabled = false;
+
+        // 自动跑诊断推理
+        runInference(data.parsed);
+      } catch (err) {
+        document.getElementById('loading')?.remove();
+        appendMessage('error', `❌ 网络错误:${err.message}\n请确认后端已启动 (python3 backend/app.py)`);
+      } finally {
+        isSending = false;
+        input.disabled = false;
+        sendBtn.disabled = false;
+        sendBtn.textContent = '发送';
+        input.focus();
+      }
+    }
+
+    // ===== 渲染消息 =====
+    function appendMessage(role, content) {
+      const messages = document.getElementById('messages');
+      const div = document.createElement('div');
+      div.className = `msg ${role}`;
+      const roleTag = role === 'user' ? '你' : (role === 'assistant' ? 'AI 接诊助手' : '错误');
+      div.innerHTML = `<div class="role-tag">${roleTag}</div>${escapeHtml(content)}`;
+      messages.appendChild(div);
+      scrollToBottom();
+    }
+
+    function scrollToBottom() {
+      const messages = document.getElementById('messages');
+      messages.scrollTop = messages.scrollHeight;
+    }
+
+    function escapeHtml(s) {
+      return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+    }
+
+    // ===== 构建 AI 消息摘要(右侧有完整 JSON) =====
+    function buildSummary(p) {
+      const lines = [];
+      if (p.patient && p.patient.name) {
+        const ageStr = p.patient.age ? ` ${p.patient.age}${p.patient.age_unit === 'year' ? '岁' : p.patient.age_unit}` : '';
+        lines.push(`👤 患者:${p.patient.name} ${p.patient.gender === 'M' ? '男' : p.patient.gender === 'F' ? '女' : '性别未知'}${ageStr}`);
+      }
+      if (p.chief_complaint) lines.push(`📋 主诉:${p.chief_complaint}`);
+      if (Array.isArray(p.symptoms) && p.symptoms.length) {
+        lines.push(`🌡️ 症状(${p.symptoms.length} 条):`);
+        p.symptoms.forEach(s => {
+          const flag = s.is_primary ? '★' : ' ';
+          const dur = s.duration_days ? ` ${s.duration_days}天` : '';
+          lines.push(`  ${flag} ${s.symptom_name}(${s.body_part}, ${s.severity}${dur}) ← "${s.raw_description}"`);
+        });
+      }
+      if (p.vital_signs) {
+        const vs = [];
+        if (p.vital_signs.temperature) vs.push(`T ${p.vital_signs.temperature}°C`);
+        if (p.vital_signs.heart_rate) vs.push(`HR ${p.vital_signs.heart_rate}`);
+        if (p.vital_signs.bp_systolic) vs.push(`BP ${p.vital_signs.bp_systolic}/${p.vital_signs.bp_diastolic}`);
+        if (vs.length) lines.push(`💉 生命体征:${vs.join('  ')}`);
+      }
+      if (Array.isArray(p.suspected_diseases) && p.suspected_diseases.length) {
+        lines.push(`🔍 疑似诊断:`);
+        p.suspected_diseases.forEach(d => {
+          lines.push(`  · ${d.disease_name}${d.icd_code ? `(${d.icd_code})` : ''} 置信度 ${(d.confidence * 100).toFixed(0)}%`);
+        });
+      }
+      lines.push('');
+      lines.push('→ 完整 JSON 已展示在右侧,可点击"复制"用于后续胶水代码。');
+      return lines.join('\n');
+    }
+
+    // ===== 渲染右侧 JSON(带语法高亮) =====
+    function renderJson(parsed, raw) {
+      const content = document.getElementById('json-content');
+      const jsonStr = JSON.stringify(parsed, null, 2);
+      content.innerHTML = `<pre class="json-pre">${highlightJson(jsonStr)}</pre>`;
+    }
+
+    // 简化版 JSON 语法高亮
+    function highlightJson(json) {
+      const escaped = json
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+      return escaped.replace(
+        /("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+-]?\d+)?)/g,
+        (match, _g1, p2) => {
+          let cls = 'json-number';
+          if (/^"/.test(match)) {
+            cls = p2 ? 'json-key' : 'json-string';
+          } else if (/true|false/.test(match)) {
+            cls = 'json-boolean';
+          } else if (/null/.test(match)) {
+            cls = 'json-null';
+          }
+          return `<span class="${cls}">${match}</span>`;
+        }
+      );
+    }
+
+    // ===== 诊断推理 =====
+    function runInference(parsed) {
+      if (!parsed || !Array.isArray(parsed.symptoms) || parsed.symptoms.length === 0) {
+        document.getElementById('infer-content').innerHTML = '<div class="infer-empty">未检测到症状,无法推理</div>';
+        document.getElementById('infer-status').textContent = '';
+        return;
+      }
+      const names = parsed.symptoms.map(s => s.symptom_name).filter(Boolean);
+      inferByNames(names);
+    }
+
+    function quickInfer() {
+      const input = document.getElementById('quick-symptoms').value.trim();
+      if (!input) return;
+      const names = input.split(/[,，、\s]+/).map(s => s.trim()).filter(Boolean);
+      inferByNames(names);
+    }
+
+    async function inferByNames(symptomNames) {
+      const statusEl = document.getElementById('infer-status');
+      const contentEl = document.getElementById('infer-content');
+
+      statusEl.textContent = '推理中…';
+      contentEl.innerHTML = '<div class="infer-loading"><div class="spinner" style="display:inline-block;vertical-align:middle;"></div> 正在匹配疾病-症状知识库…</div>';
+
+      try {
+        // 1. 获取症状字典,建立 name → code 映射
+        const dictRes = await fetch(`${API_BASE}/api/symptom_dict`);
+        const symptomDict = await dictRes.json();
+        const nameToCode = {};
+        symptomDict.forEach(s => { nameToCode[s.name] = s.symptom_code; });
+
+        // 2. 把症状名转成 code
+        const codes = [];
+        const unmatched = [];
+        symptomNames.forEach(name => {
+          const code = nameToCode[name];
+          if (code) codes.push(code);
+          else unmatched.push(name);
+        });
+
+        if (codes.length === 0) {
+          contentEl.innerHTML = `<div class="infer-empty">症状"${unmatched.join('、')}"未在知识库中匹配到</div>`;
+          statusEl.textContent = '';
+          return;
+        }
+
+        // 3. 调推理 API
+        const inferRes = await fetch(`${API_BASE}/api/infer`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ symptoms: codes, top_n: 5, method: 'sql' }),
+        });
+        const inferData = await inferRes.json();
+
+        if (!inferRes.ok || !inferData.results || inferData.results.length === 0) {
+          contentEl.innerHTML = `<div class="infer-empty">未匹配到疾病${inferData.error ? ': ' + inferData.error : ''}</div>`;
+          statusEl.textContent = '';
+          return;
+        }
+
+        // 4. 渲染结果
+        renderInference(inferData, unmatched);
+        statusEl.textContent = `命中 ${codes.length} 个症状`;
+
+      } catch (err) {
+        contentEl.innerHTML = `<div class="infer-empty">推理失败:${err.message}<br>(请确认后端已启动)</div>`;
+        statusEl.textContent = '';
+      }
+    }
+
+    function renderInference(data, unmatched) {
+      const contentEl = document.getElementById('infer-content');
+      const items = data.results.map((r, i) => {
+        const rank = i + 1;
+        const rankClass = rank <= 3 ? `rank-${rank}` : '';
+        const probPct = (r.probability * 100).toFixed(0);
+        const barWidth = Math.round(r.probability * 100);
+        return `
+          <div class="infer-item ${rankClass}">
+            <div>
+              <span class="infer-name">${rank}. ${escapeHtml(r.name)}</span>
+              <span class="infer-code">${r.disease_code}</span>
+              <span class="infer-prob">${probPct}%</span>
+            </div>
+            <div class="infer-meta">
+              命中 ${r.matched_symptoms}/${r.total_symptoms} 症状(命中率 ${(r.hit_ratio*100).toFixed(0)}%)
+              ${r.is_chronic ? ' · 慢性病' : ''} · ${r.category || ''}
+              ${r.matched_names ? '<br>命中: ' + escapeHtml(r.matched_names) : ''}
+            </div>
+            <div class="infer-bar"><div class="infer-bar-fill" style="width:${barWidth}%"></div></div>
+          </div>
+        `;
+      }).join('');
+
+      const unmatchedNote = unmatched.length
+        ? `<div style="font-size:11px;color:#e6a23c;margin-bottom:8px;">⚠️ 未匹配症状: ${unmatched.map(escapeHtml).join('、')}</div>`
+        : '';
+
+      contentEl.innerHTML = unmatchedNote + items;
+    }
+
+    // ===== 复制 JSON =====
+    async function copyJson() {
+      if (!lastParsed) return;
+      try {
+        await navigator.clipboard.writeText(JSON.stringify(lastParsed, null, 2));
+        const btn = document.getElementById('copy-btn');
+        btn.textContent = '已复制 ✓';
+        btn.classList.add('copied');
+        setTimeout(() => {
+          btn.textContent = '复制';
+          btn.classList.remove('copied');
+        }, 1500);
+      } catch (err) {
+        alert('复制失败:' + err.message);
+      }
+    }
+
+    // ===== 重置对话 =====
+    async function resetChat() {
+      if (!confirm('确定清空对话历史吗?(右侧 JSON 会保留)')) return;
+      try {
+        await fetch(`${API_BASE}/api/chat/reset`, { method: 'POST' });
+        const messages = document.getElementById('messages');
+        messages.innerHTML = `
+          <div class="msg assistant">
+            <div class="role-tag">AI 接诊助手</div>
+            对话已重置。可以重新开始描述患者情况。
+          </div>
+        `;
+      } catch (err) {
+        alert('重置失败:' + err.message);
+      }
+    }
+
+    // ===== 示例填充 =====
+    function fillExample(idx) {
+      const input = document.getElementById('msg-input');
+      input.value = EXAMPLES[idx];
+      input.focus();
+      // 自适应高度
+      input.style.height = 'auto';
+      input.style.height = Math.min(120, input.scrollHeight) + 'px';
+    }
+
+    // ===== 事件绑定 =====
+    document.addEventListener('DOMContentLoaded', () => {
+      checkHealth();
+
+      const input = document.getElementById('msg-input');
+      const sendBtn = document.getElementById('send-btn');
+
+      // Cmd/Ctrl + Enter 发送
+      input.addEventListener('keydown', (e) => {
+        if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+          e.preventDefault();
+          sendMessage();
+        }
+      });
+
+      // textarea 自适应高度
+      input.addEventListener('input', () => {
+        input.style.height = 'auto';
+        input.style.height = Math.min(120, input.scrollHeight) + 'px';
+      });
+
+      input.focus();
+    });
+  </script>
+</body>
+</html>
