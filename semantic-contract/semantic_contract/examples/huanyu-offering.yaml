@@ -6,10 +6,10 @@ kind: SemanticEntity
 metadata:
   id: huanyu.offering
   domain: ecommerce
-  version: 0.1.0
+  version: 0.2.0
   owner: joyce
   status: draft
-  review_note: "M0 示范：从 server/ontology/concepts.ts 的 Offering 概念迁入契约格式"
+  review_note: "v0.2 (M2)：盲盒毛利率因物理层缺 cost 依赖标 blocked（治理活案例），新增可编译的盲盒销售占比；v0.1 (M0) 从 server/ontology/concepts.ts 迁入"
 
 # ── 1. 概念层（唯一进 LLM prompt 的部分）──────────────────
 concept:
@@ -40,30 +40,60 @@ physical_mapping:
   source: postgresql
   tables:
     primary: offerings
-    detail: offering_items
+    detail: offeringItems
+    refs:
+      orderItems: 订单行（销售事实，camelCase 表名需引号）
+      orders: 订单头（time 列为下单时刻文本）
   field_map:
-    offering_type: { table: offerings, column: type }
-    price: { table: offerings, column: price_cents, transform: "value / 100.0" }
-    stock_status: { table: offerings, column: stock, transform: "case: >0=available, 1-5=low, 0=out" }
+    offering_type: { table: offerings, column: '"type"' }
+    price: { table: offerings, column: '"price_cents"', transform: "value / 100.0" }
+    stock_status: { table: offerings, column: '"stock"', transform: "case: >0=available, 1-5=low, 0=out" }
+    sale_type: { table: offerings, column: '"saleType"' }
+    revenue:
+      table: orderItems
+      derive: '"orderItems"."price" * "orderItems"."quantity"'
     contains_book:
-      via: offering_items
-      join: "offerings.id = offering_items.offering_id"
-      target: "offering_items.book_id"
-      probability: "offering_items.weight"
+      via: offeringItems
+      join: "offerings.productId = offeringItems.productId"
+      target: "offeringItems.bookId"
+      probability: "offeringItems.probability"
 
 # ── 3. 指标视图层（查询规划 Agent 的命中目标）────────────────
 semantic_views:
+  - id: huanyu.view.mystery_sales_share
+    name_zh: 盲盒销售占比
+    formula: "sum(盲盒订单行收入) / sum(全部订单行收入) by day"
+    grain: [day]
+    time_window:
+      type: rolling
+      days: 30
+      anchor: '"orders"."time"'
+    notes: 卖法结构健康度（M2 口径调整：物理层无逐单成本，毛利率 blocked，先以销售占比观察盲盒盘子）
+    compile:
+      source: orderItems
+      joins:
+        - { table: offerings, "on": '"orderItems"."productId" = "offerings"."productId"' }
+        - { table: orders, "on": '"orderItems"."orderId" = "orders"."id"' }
+      metrics:
+        - name: mystery_sales_share
+          agg: none
+          expr: >
+            sum(CASE WHEN "offerings"."saleType" = 'mystery'
+                THEN "orderItems"."price" * "orderItems"."quantity" ELSE 0 END)::float
+            / nullif(sum("orderItems"."price" * "orderItems"."quantity"), 0)
+      dimensions:
+        - { name: day, expr: '"orders"."time"::date' }
+
   - id: huanyu.view.mystery_gross_margin
     name_zh: 盲盒毛利率
-    formula: "(sum(order_item.revenue) - sum(order_item.cost)) / sum(order_item.revenue)"
+    formula: "(sum(revenue) - sum(cost)) / sum(revenue)"
     grain: [day, offering_id]
-    time_window: rolling_30d
-    notes: "成本来自 offering_items.weight 加权后的书目成本"
-  - id: huanyu.view.conversion_by_offering
-    name_zh: 卖法转化率
-    formula: "count(distinct order_id) / count(distinct session_id)"
-    grain: [day, offering_type]
-    time_window: rolling_7d
+    time_window: { type: rolling, days: 30, anchor: ordered_at }
+    status: blocked                  # 编译器跳过；注册表不展示
+    notes: >
+      口径依赖未就绪：orderItems 无 cost 列、financeRecords 仅 category 级收支，
+      无法按卖法拆逐单成本。解锁条件 = 订单行接入书目成本（offeringItems.weight 加权）。
+      治理示例：依赖不满足的口径不进 production，也不进 LLM 注册表。
 
 # ── 4. 治理规则层（校验 Agent 逐条机器判定）──────────────────
 policies:
@@ -75,6 +105,7 @@ policies:
       when: "offering_type == 'mystery'"
       then: "disclosure_allowed == false unless stock_status == 'out'"
     rationale: "盲盒机制受平台规则约束：仅当该卖法缺货（无法履约）时才可向用户披露具体书目，否则视为剧透违规"
+
   - id: huanyu.policy.price_consistency
     name_zh: 价格口径一致性
     type: consistency
@@ -82,3 +113,4 @@ policies:
     condition:
       when: "semantic_view 引用 price"
       then: "必须经 field_map.transform 统一为元，禁止直接引用 price_cents"
+    rationale: "价格口径唯一真相源在 field_map.transform，绕过即口径漂移"

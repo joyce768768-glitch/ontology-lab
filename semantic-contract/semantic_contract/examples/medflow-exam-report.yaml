@@ -1,0 +1,181 @@
+# MedFlow · 示范实体：ExamReport（检验报告）
+# 医疗域示范：时态业务对象 + 周转时间指标 + 角色隐私治理
+apiVersion: semantic.joyce/v1
+kind: SemanticEntity
+
+metadata:
+  id: medflow.exam_report
+  domain: healthcare
+  version: 0.2.0
+  owner: joyce
+  status: draft
+  review_note: "v0.2 (M2)：semantic_views 增加 compile 编译段（5 个视图全部可编译）；v0.1 (M0) 从 graph/ontology.py TBox.ExamReport 迁入契约格式"
+
+# ── 1. 概念层（唯一进 LLM prompt 的部分）──────────────────
+concept:
+  name_zh: 检验报告
+  description: >
+    一次检验申请产生的结果报告，属 MedicalFlow 命名空间。报告由技师（LabTech）
+    完成、主治医生（Attending）消费，是诊疗流程中最典型的跨角色时态对象。
+    继承 TBox 时态约束：所有关系带 valid_time，查询强制时间窗口。
+  fields:
+    - name: status
+      desc: 报告状态：ordered（已开单）| sampling（已采样）| testing（检验中）| completed（已出报告）
+    - name: tat_hours
+      desc: 周转时间（小时）= 报告完成时刻 − 医嘱开单时刻（派生字段，非存储）
+    - name: abnormal_flag
+      desc: 异常标记：normal | abnormal | critical
+    - name: patient_id
+      desc: 所属患者（受 policy.patient_scope 约束）
+    - name: department
+      desc: 送检科室 = 开单医生所属科室（经「报告→开单人→科室」关系派生，报告实体不直接持有）
+  relations:
+    - rel: belongs_to_visit
+      target: medflow.visit_record
+      cardinality: "1"
+      temporal: true           # TBox 时态约束继承
+    - rel: performed_by
+      target: medflow.doctor   # 实际为 lab_tech 角色，TBox 中归 Doctor 族
+      cardinality: "1"
+    - rel: consumes_by
+      target: medflow.doctor
+      cardinality: 1..n        # 主治/MDT 专家可多角色消费
+
+# ── 2. 物理映射层（编译器专用，永不进 prompt）────────────────
+physical_mapping:
+  source: sqlite               # M1 落库后：SQLite（演示）/ PostgreSQL（生产同构）
+  tables:
+    primary: exam_reports
+    detail: exam_items
+    refs:
+      users: 开单/执行/会诊人员（department 列为科室名，tat_by_department 的派生源）
+  field_map:
+    status:
+      table: exam_reports
+      column: status
+      # M1 落库口径：存储沿用运行时枚举 ordered/pending/done，编译器翻译：
+      # done → completed，pending → testing（采样中归 testing）
+      runtime_enum: [ordered, pending, done]
+      contract_enum: [ordered, sampling, testing, completed]
+      translator: done->completed; pending->testing
+    tat_hours:
+      derive: "(julianday(exam_reports.completed_at) - julianday(exam_reports.ordered_at)) * 24.0"
+      # ordered_at 列即医嘱开单时刻（= CheckTask.created_at 落库，M1 定稿列名）
+    abnormal_flag: { table: exam_reports, column: flag }
+    patient_id: { table: exam_reports, column: patient_id }
+    department:
+      table: users
+      column: department
+      via: "exam_reports.created_by = users.user_id"
+
+# ── 3. 指标视图层（查询规划 Agent 的命中目标）────────────────
+# compile 段 = 物理侧（与 physical_mapping 同权限边界，永不进 prompt）
+semantic_views:
+  - id: medflow.view.tat_by_department
+    name_zh: 科室检验平均周转时间
+    formula: "avg(tat_hours) by day, department"
+    grain: [day, department]
+    time_window: { type: rolling, days: 7, anchor: ordered_at }
+    notes: 周转异常科室识别的底座；科室 = 开单医生所属科室；仅统计有效时序样本（完成 ≥ 开单）
+    compile:
+      source: exam_reports
+      joins:
+        - { table: users, "on": "exam_reports.created_by = users.user_id" }
+      filters:
+        # 演示库 flow 来源存在「今天开单、回填历史完成时刻」的时序伪影——
+        # 语义层显式排除（口径治理落点：无效样本不进均值，报表可解释）
+        - "exam_reports.completed_at >= exam_reports.ordered_at"
+      metrics:
+        - { name: avg_tat_hours, agg: avg, expr: "(julianday(exam_reports.completed_at) - julianday(exam_reports.ordered_at)) * 24.0" }
+      dimensions:
+        - { name: department, expr: "users.department" }
+        - { name: day, expr: "date(exam_reports.ordered_at)" }
+
+  - id: medflow.view.critical_report_latency
+    name_zh: 危急报告响应时长
+    formula: "avg(tat_hours) where abnormal_flag == 'critical' by day"
+    grain: [day]
+    time_window: { type: rolling, days: 1, anchor: ordered_at }
+    notes: 危急值闭环时效；24h 窗口即 rolling_24h
+    compile:
+      source: exam_reports
+      filters:
+        - "exam_reports.flag = 'critical'"
+        - "exam_reports.completed_at >= exam_reports.ordered_at"
+      metrics:
+        - { name: avg_latency_hours, agg: avg, expr: "(julianday(exam_reports.completed_at) - julianday(exam_reports.ordered_at)) * 24.0" }
+      dimensions:
+        - { name: day, expr: "date(exam_reports.ordered_at)" }
+
+  - id: medflow.view.report_status_distribution
+    name_zh: 报告状态分布
+    formula: "count(*) by day, status"
+    grain: [day, status]
+    notes: 病案/报告流转看板的底座；status 输出契约枚举（done→completed 翻译在 CASE 中）
+    compile:
+      source: exam_reports
+      metrics:
+        - { name: report_count, agg: count }
+      dimensions:
+        - { name: status, expr: "exam_reports.status", translate: true }
+        - { name: day, expr: "date(exam_reports.ordered_at)" }
+
+  - id: medflow.view.mdt_consult_volume
+    name_zh: MDT 会诊量与采纳率
+    formula: "count(*) as 会诊意见数, avg(is_adopted) as 采纳率 by day"
+    grain: [day]
+    time_window: { type: rolling, days: 7, anchor: created_at }
+    notes: MDT 协作活跃度；采纳率衡量 AI 建议 → 医生确认的 HITL 闭环质量
+    compile:
+      source: mdt_comments
+      metrics:
+        - { name: adoption_rate, agg: avg, expr: "mdt_comments.is_adopted" }
+      dimensions:
+        - { name: day, expr: "date(mdt_comments.created_at)" }
+
+  - id: medflow.view.exam_volume_by_type
+    name_zh: 检验开单量
+    formula: "count(*) by day, task_type"
+    grain: [day, task_type]
+    time_window: { type: rolling, days: 7, anchor: ordered_at }
+    notes: 检验工作量分布（血检/CT/超声）
+    compile:
+      source: exam_reports
+      dimensions:
+        - { name: task_type, expr: "exam_reports.task_type" }
+        - { name: day, expr: "date(exam_reports.ordered_at)" }
+
+# ── 4. 治理规则层（校验 Agent 逐条机器判定）──────────────────
+policies:
+  - id: medflow.policy.patient_scope
+    name_zh: 患者数据范围
+    type: privacy
+    severity: block
+    condition:
+      when: "查询引用 patient_id"
+      then: "结果集 ⊆ 当前角色可访问的患者集合（attending=本人收治 | lab_tech=本科室送检 | readonly=授权病案）"
+    rationale: "医疗数据最小可见原则——同一张报告，护士分诊只读、主治全权、MDT 专家仅评论"
+
+  - id: medflow.policy.no_direct_ai_diagnosis
+    name_zh: AI 诊断边界
+    type: disclosure
+    severity: block
+    condition:
+      when: "NL 意图分类 ∈ {下诊断, 处方建议}"
+      then: "拦截并拒答，引导至 HITL 流程（医生确认工作台）"
+    rationale: "Agent 生成建议、医生确认采纳——HITL 是产品级安全边界，不是可选项"
+
+  - id: medflow.policy.tat_temporal_window
+    name_zh: 周转时间时态约束
+    type: consistency
+    severity: block
+    condition:
+      when: "semantic_view 引用 tat_hours"
+      then: "查询必须携带显式时间窗口，禁止全表聚合"
+    rationale: "继承 TBox 时态优先原则：医疗统计无时间窗即无意义且误导"
+    machine_check:                     # M2：编译器逐条机器判定的结构化子集
+      views:
+        - medflow.view.tat_by_department
+        - medflow.view.critical_report_latency
+        - medflow.view.exam_volume_by_type
+      requires_time_window: true
