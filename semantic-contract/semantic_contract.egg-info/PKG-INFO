@@ -1,6 +1,0 @@
-Metadata-Version: 2.4
-Name: semantic-contract
-Version: 0.2.0
-Summary: 语义契约编译器：semantic_views YAML → 参数化 SQL（sqlite / postgresql 双方言），输出带 provenance
-Requires-Python: >=3.9
-Requires-Dist: pyyaml>=5.4
