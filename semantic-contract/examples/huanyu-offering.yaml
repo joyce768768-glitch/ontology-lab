@@ -1,0 +1,84 @@
+# 寰宇思贤 · 示范实体：Offering（卖法）
+# 电商域最复杂的本体关系：一本书如何被售卖（单本/套装/盲盒），及盲盒披露治理
+apiVersion: semantic.joyce/v1
+kind: SemanticEntity
+
+metadata:
+  id: huanyu.offering
+  domain: ecommerce
+  version: 0.1.0
+  owner: joyce
+  status: draft
+  review_note: "M0 示范：从 server/ontology/concepts.ts 的 Offering 概念迁入契约格式"
+
+# ── 1. 概念层（唯一进 LLM prompt 的部分）──────────────────
+concept:
+  name_zh: 卖法
+  description: >
+    一本书在店铺中的售卖形态。核心洞察：书（Book）和卖法（Offering）是两个概念——
+    同一本书可以有单本、套装、盲盒三种卖法；盲盒卖法下，具体书目按概率池分配，
+    是否可向用户披露「会拿到哪本」由治理规则决定。
+  fields:
+    - name: offering_type
+      desc: 卖法类型：single（单本）| bundle（套装）| mystery（盲盒）
+    - name: price
+      desc: 售价（元）
+    - name: disclosure_allowed
+      desc: 盲盒卖法是否允许向用户披露具体书目（由 policy 计算，非存储字段）
+    - name: stock_status
+      desc: 库存状态：available | low | out
+  relations:
+    - rel: contains_book        # 卖法包含书目（盲盒为概率性包含）
+      target: huanyu.book
+      cardinality: 1..n
+    - rel: sold_in_order        # 卖法出现在订单行
+      target: huanyu.order_item
+      cardinality: 0..n
+
+# ── 2. 物理映射层（编译器专用，永不进 prompt）────────────────
+physical_mapping:
+  source: postgresql
+  tables:
+    primary: offerings
+    detail: offering_items
+  field_map:
+    offering_type: { table: offerings, column: type }
+    price: { table: offerings, column: price_cents, transform: "value / 100.0" }
+    stock_status: { table: offerings, column: stock, transform: "case: >0=available, 1-5=low, 0=out" }
+    contains_book:
+      via: offering_items
+      join: "offerings.id = offering_items.offering_id"
+      target: "offering_items.book_id"
+      probability: "offering_items.weight"
+
+# ── 3. 指标视图层（查询规划 Agent 的命中目标）────────────────
+semantic_views:
+  - id: huanyu.view.mystery_gross_margin
+    name_zh: 盲盒毛利率
+    formula: "(sum(order_item.revenue) - sum(order_item.cost)) / sum(order_item.revenue)"
+    grain: [day, offering_id]
+    time_window: rolling_30d
+    notes: "成本来自 offering_items.weight 加权后的书目成本"
+  - id: huanyu.view.conversion_by_offering
+    name_zh: 卖法转化率
+    formula: "count(distinct order_id) / count(distinct session_id)"
+    grain: [day, offering_type]
+    time_window: rolling_7d
+
+# ── 4. 治理规则层（校验 Agent 逐条机器判定）──────────────────
+policies:
+  - id: huanyu.policy.mystery_disclosure
+    name_zh: 盲盒披露规则
+    type: disclosure
+    severity: block            # block=拦截并拒答 | warn=放行但附提示
+    condition:
+      when: "offering_type == 'mystery'"
+      then: "disclosure_allowed == false unless stock_status == 'out'"
+    rationale: "盲盒机制受平台规则约束：仅当该卖法缺货（无法履约）时才可向用户披露具体书目，否则视为剧透违规"
+  - id: huanyu.policy.price_consistency
+    name_zh: 价格口径一致性
+    type: consistency
+    severity: block
+    condition:
+      when: "semantic_view 引用 price"
+      then: "必须经 field_map.transform 统一为元，禁止直接引用 price_cents"
