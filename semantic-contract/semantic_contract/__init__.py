@@ -21,8 +21,20 @@ from .orchestration import (
     rule_plan,
     validate_plan,
 )
+from .reporting import (
+    REPORT_PLANNER_SYSTEM_TEMPLATE,
+    REPORT_SUMMARY_SYSTEM_TEMPLATE,
+    ReportPlanParseError,
+    apply_anomaly_rules,
+    parse_report_plan,
+    parse_report_summary,
+    report_planner_prompt,
+    report_summary_prompt,
+    section_digest,
+    validate_report_plan,
+)
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 
 __all__ = [
     "CompiledQuery", "PolicyViolationError", "compile_view",
@@ -32,4 +44,9 @@ __all__ = [
     "PLANNER_SYSTEM_TEMPLATE", "ANSWER_SYSTEM_TEMPLATE", "PLAN_INTENTS",
     "PlanParseError", "planner_prompt", "parse_plan", "rule_plan",
     "validate_plan", "answer_prompt",
+    # M4 报表编排参考实现
+    "REPORT_PLANNER_SYSTEM_TEMPLATE", "REPORT_SUMMARY_SYSTEM_TEMPLATE",
+    "ReportPlanParseError", "report_planner_prompt", "parse_report_plan",
+    "validate_report_plan", "report_summary_prompt", "parse_report_summary",
+    "section_digest", "apply_anomaly_rules",
 ]
